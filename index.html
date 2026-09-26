@@ -1,1355 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aadhaar Collection — Duplicate Pruner</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Farmer ID portal – Bandipora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap" rel="stylesheet">
+<script>
+/* ============ SETTINGS ============ */
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby5STKAh0QGza6oGW5hXqZZp2kzst_nxchZzSskZ7mOUk-TTVR6aH7Qw7VAjr3LFZ29Ag/exec";
+</script>
 <style>
-  :root {
-    --paper: #f6f3ec;
-    --panel: #ffffff;
-    --ink: #1a1d2b;
-    --ink-soft: #4a4d5f;
-    --muted: #7a7d90;
-    --line: #e5e2d8;
-    --line-strong: #cbc7ba;
-    --accent: #3730a3;
-    --accent-hover: #4338ca;
-    --accent-soft: #eef2ff;
-    --prune: #b45309;
-    --prune-soft: #fef3c7;
-    --keep: #047857;
-    --keep-soft: #d1fae5;
-    --unique: #6366f1;
-    --unique-soft: #eef2ff;
-    --owner: #0369a1;
-    --owner-soft: #e0f2fe;
-    --cult: #7c2d12;
-    --cult-soft: #fed7aa;
-    --both: #6d28d9;
-    --both-soft: #ede9fe;
-    --danger: #b91c1c;
-    --danger-soft: #fee2e2;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--paper); color: var(--ink);
-    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 24px 80px; }
-
-  header.top { padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
-  header.top .eyebrow {
-    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--muted); font-weight: 600; margin-bottom: 8px;
-  }
-  header.top h1 { font-size: 28px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
-  header.top p { margin: 0; color: var(--ink-soft); max-width: 720px; }
-
-  .steps {
-    display: flex; gap: 0; margin-bottom: 28px;
-    border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel);
-  }
-  .step {
-    flex: 1; padding: 10px 14px; font-size: 12px; color: var(--muted);
-    border-right: 1px solid var(--line);
-    display: flex; align-items: center; gap: 8px;
-  }
-  .step:last-child { border-right: none; }
-  .step .num {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: var(--line); color: var(--ink-soft);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 11px;
-  }
-  .step.active { color: var(--ink); background: var(--accent-soft); font-weight: 500; }
-  .step.active .num { background: var(--accent); color: white; }
-  .step.done { color: var(--keep); }
-  .step.done .num { background: var(--keep); color: white; }
-
-  .panel {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 8px; padding: 24px; margin-bottom: 20px;
-  }
-  .panel h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-  .panel .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-
-  .drop {
-    border: 2px dashed var(--line-strong); border-radius: 8px;
-    padding: 48px 24px; text-align: center; cursor: pointer;
-    transition: all 0.15s; background: var(--paper);
-  }
-  .drop:hover, .drop.dragging { border-color: var(--accent); background: var(--accent-soft); }
-  .drop .icon { font-size: 32px; margin-bottom: 8px; }
-  .drop .primary { font-weight: 600; margin-bottom: 4px; }
-  .drop .secondary { color: var(--muted); font-size: 13px; }
-  .drop input { display: none; }
-
-  .format-note {
-    padding: 10px 14px; background: var(--paper); border-radius: 6px;
-    margin-top: 12px; font-size: 12px; color: var(--muted);
-  }
-  .format-note strong { color: var(--ink-soft); }
-
-  .file-meta {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; background: var(--paper); border-radius: 6px;
-    margin-top: 12px; font-size: 13px;
-  }
-  .file-meta .name { font-weight: 500; }
-  .file-meta .clear {
-    color: var(--muted); background: none; border: none; cursor: pointer;
-    font-size: 13px; text-decoration: underline; padding: 4px 8px;
-  }
-  .file-meta .clear:hover { color: var(--danger); }
-
-  .format-badge {
-    display: inline-block; padding: 2px 8px;
-    background: var(--accent-soft); color: var(--accent);
-    border-radius: 4px; font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em; margin-left: 8px;
-  }
-
-  /* Include-type toggles (AgriStack only) */
-  .type-filter {
-    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-    padding: 12px 16px; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 8px;
-    margin-bottom: 16px;
-  }
-  .type-filter .lbl {
-    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--muted); font-weight: 600;
-  }
-  .type-filter label {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 10px; border-radius: 6px; cursor: pointer;
-    font-size: 13px; user-select: none;
-    background: var(--paper); border: 1px solid var(--line);
-  }
-  .type-filter label.on { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
-  .type-filter label input { margin: 0; }
-  .type-filter .counts { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-
-  .stats {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1px; background: var(--line); border: 1px solid var(--line);
-    border-radius: 8px; overflow: hidden; margin-bottom: 20px;
-  }
-  .stat { padding: 14px 16px; background: var(--panel); }
-  .stat .label {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--muted); font-weight: 600; margin-bottom: 4px;
-  }
-  .stat .value { font-size: 22px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
-  .stat.prune .value { color: var(--prune); }
-  .stat.keep .value { color: var(--keep); }
-
-  .info-bar {
-    display: flex; gap: 24px; padding: 12px 16px;
-    background: var(--accent-soft); border-left: 3px solid var(--accent);
-    border-radius: 4px; margin-bottom: 16px; font-size: 13px; flex-wrap: wrap;
-  }
-  .info-bar .item .k {
-    font-size: 11px; color: var(--muted); text-transform: uppercase;
-    letter-spacing: 0.08em; font-weight: 600; display: block;
-  }
-  .info-bar .item .v { font-weight: 600; }
-
-  .search-block {
-    display: flex; gap: 10px; align-items: stretch;
-    padding: 16px; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 10px;
-    margin-bottom: 12px;
-  }
-  .search-input-wrap { flex: 1; position: relative; }
-  .search-input-wrap::before {
-    content: '🔍'; position: absolute; left: 14px; top: 50%;
-    transform: translateY(-50%); font-size: 16px; opacity: 0.5;
-    pointer-events: none;
-  }
-  .search-block input[type=search] {
-    width: 100%; padding: 12px 40px 12px 42px;
-    border: 1.5px solid var(--line-strong); border-radius: 8px;
-    font-size: 15px; font-family: inherit; background: white;
-  }
-  .search-block input[type=search]:focus {
-    outline: none; border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-  .search-clear {
-    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; padding: 6px 10px;
-    color: var(--muted); font-size: 13px; border-radius: 4px;
-  }
-  .search-clear:hover { background: var(--paper); color: var(--ink); }
-  .search-hits {
-    position: absolute; right: 60px; top: 50%; transform: translateY(-50%);
-    font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
-  }
-
-  .controls {
-    display: flex; gap: 12px; align-items: center;
-    padding: 12px 0; margin-bottom: 12px;
-    border-bottom: 1px solid var(--line); flex-wrap: wrap;
-  }
-  .controls label {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 13px; cursor: pointer; user-select: none;
-  }
-  .controls .grow { flex: 1; }
-
-  .btn {
-    padding: 8px 14px; border: 1px solid var(--line-strong);
-    background: var(--panel); border-radius: 6px;
-    font-size: 13px; font-weight: 500; cursor: pointer;
-    font-family: inherit; color: var(--ink); transition: all 0.12s;
-  }
-  .btn:hover { background: var(--paper); border-color: var(--ink-soft); }
-  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
-  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-  .btn-primary:disabled { background: var(--muted); border-color: var(--muted); cursor: not-allowed; }
-  .btn-big { padding: 12px 24px; font-size: 14px; font-weight: 600; }
-
-  /* Type badges */
-  .type-badge {
-    display: inline-block;
-    padding: 1px 7px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    line-height: 1.5;
-  }
-  .type-badge.owner { background: var(--owner-soft); color: var(--owner); }
-  .type-badge.cult  { background: var(--cult-soft); color: var(--cult); }
-  .type-badge.both  { background: var(--both-soft); color: var(--both); }
-
-  /* Groups */
-  .items { }
-  .group, .unique-item {
-    border: 1px solid var(--line); border-radius: 8px;
-    margin-bottom: 12px; overflow: hidden; background: var(--panel);
-  }
-  .group-header, .unique-header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--line);
-    user-select: none;
-  }
-  .group-header {
-    background: linear-gradient(to right, var(--paper) 0%, var(--panel) 60%);
-    cursor: pointer;
-  }
-  .group-header:hover { background: var(--accent-soft); }
-  .unique-header {
-    background: var(--unique-soft); border-bottom: none; padding: 10px 16px;
-  }
-  .unique-item { border-color: #dbeafe; }
-
-  .group-badge, .unique-badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 32px; height: 24px; padding: 0 8px;
-    color: white; border-radius: 12px;
-    font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-  }
-  .group-badge { background: var(--ink); }
-  .unique-badge { background: var(--unique); font-size: 10px; }
-
-  .group-name, .unique-name { font-weight: 600; color: var(--ink); }
-  .group-parentage, .unique-parentage { color: var(--muted); font-size: 13px; margin-left: 4px; }
-  .group-count {
-    margin-left: auto; font-size: 12px; color: var(--ink-soft);
-    padding: 4px 10px; background: var(--paper); border-radius: 12px;
-    font-weight: 500;
-  }
-  .unique-loc {
-    margin-left: auto; font-size: 12px; color: var(--muted);
-    font-family: 'SF Mono', Consolas, monospace;
-  }
-  .group-toggle { color: var(--muted); font-size: 12px; transition: transform 0.15s; }
-  .group.collapsed .group-toggle { transform: rotate(-90deg); }
-  .group.collapsed .group-body { display: none; }
-
-  .group-body { padding: 0; }
-  table.rows {
-    width: 100%; border-collapse: collapse; font-size: 13px;
-  }
-  table.rows th, table.rows td {
-    padding: 8px 10px; text-align: left;
-    border-bottom: 1px solid var(--line); vertical-align: middle;
-  }
-  table.rows th {
-    background: var(--paper); font-weight: 600; font-size: 11px;
-    text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
-  }
-  table.rows tr:last-child td { border-bottom: none; }
-  table.rows tr.will-prune td { background: var(--prune-soft); }
-  table.rows tr.will-keep td.status-cell { color: var(--keep); font-weight: 600; }
-  table.rows tr.will-prune td.status-cell { color: var(--prune); font-weight: 600; }
-  table.rows td.status-cell {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
-  }
-  table.rows td.checkbox-cell { width: 40px; text-align: center; }
-  table.rows td.sno { color: var(--muted); font-variant-numeric: tabular-nums; width: 55px; }
-  table.rows td.khewat, table.rows td.khata, table.rows td.khasra {
-    font-variant-numeric: tabular-nums; color: var(--ink-soft);
-    font-family: 'SF Mono', Consolas, monospace; font-size: 12px; width: 70px;
-  }
-  table.rows td.type-cell { width: 90px; }
-  table.rows td.name { font-weight: 500; }
-  table.rows td.parent { color: var(--ink-soft); }
-
-  .cb {
-    -webkit-appearance: none; appearance: none;
-    width: 18px; height: 18px; border: 1.5px solid var(--line-strong);
-    border-radius: 4px; cursor: pointer; position: relative;
-    background: white; transition: all 0.12s; margin: 0;
-  }
-  .cb:hover { border-color: var(--prune); }
-  .cb:checked { background: var(--prune); border-color: var(--prune); }
-  .cb:checked::after {
-    content: ''; position: absolute; left: 5px; top: 1px;
-    width: 5px; height: 10px; border: solid white;
-    border-width: 0 2px 2px 0; transform: rotate(45deg);
-  }
-
-  .group-actions {
-    display: flex; gap: 8px; padding: 8px 16px;
-    background: var(--paper); border-top: 1px solid var(--line);
-    font-size: 12px;
-  }
-  .group-actions button {
-    background: none; border: none; color: var(--accent);
-    cursor: pointer; padding: 4px 8px;
-    font-family: inherit; font-size: 12px; font-weight: 500;
-    border-radius: 4px;
-  }
-  .group-actions button:hover { background: var(--accent-soft); }
-
-  .group-warning {
-    padding: 8px 16px; background: var(--danger-soft); color: var(--danger);
-    font-size: 12px; border-top: 1px solid var(--line); display: none;
-  }
-  .group.all-pruned .group-warning { display: block; }
-
-  .sticky-actions {
-    position: sticky; bottom: 20px;
-    background: var(--panel); border: 1px solid var(--line-strong);
-    border-radius: 10px; padding: 16px 20px;
-    display: flex; align-items: center; gap: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    margin-top: 20px;
-  }
-  .sticky-actions .summary { flex: 1; font-size: 13px; color: var(--ink-soft); }
-  .sticky-actions .summary strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-
-  .download-panel {
-    text-align: center; padding: 40px 24px;
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px;
-  }
-  .download-panel .check {
-    width: 56px; height: 56px;
-    background: var(--keep-soft); color: var(--keep);
-    border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 28px; font-weight: 700; margin-bottom: 16px;
-  }
-  .download-panel h2 { margin-bottom: 8px; font-size: 20px; }
-  .download-panel p { color: var(--ink-soft); margin-bottom: 20px; }
-  .download-panel .btn { margin: 0 6px; }
-
-  .notice {
-    padding: 12px 16px; background: var(--accent-soft);
-    border-left: 3px solid var(--accent); border-radius: 4px;
-    font-size: 13px; color: var(--ink-soft); margin-bottom: 16px;
-  }
-  .notice strong { color: var(--ink); }
-
-  .no-results {
-    padding: 40px 24px; text-align: center; color: var(--muted);
-    background: var(--panel); border: 1px dashed var(--line-strong);
-    border-radius: 8px;
-  }
-
-  .hidden { display: none !important; }
-  mark { background: #fff59d; padding: 1px 2px; border-radius: 2px; color: inherit; }
-
-  @media (max-width: 640px) {
-    .wrap { padding: 20px 12px 60px; }
-    header.top h1 { font-size: 22px; }
-    .steps { flex-direction: column; }
-    .step { border-right: none; border-bottom: 1px solid var(--line); }
-    .step:last-child { border-bottom: none; }
-    .sticky-actions { flex-direction: column; align-items: stretch; }
-    table.rows th, table.rows td { padding: 6px 8px; font-size: 12px; }
-  }
+:root{--ink:#1c2a36;--ink-2:#4a5a67;--ink-3:#7c8a95;--paper:#f5f6f3;--card:#fff;--line:#dde2dc;--line-2:#eceee9;--card-line:#c9d0d6;
+  --field:#2f6b4f;--brick:#a8432a;--grey:#d5dad6;--focus:#2a6fdb}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#e6ebef;--ink-2:#b3bec7;--ink-3:#86939d;--paper:#141a1f;--card:#1c242b;--line:#2f3a43;--line-2:#252f37;--card-line:#3a4650;
+  --field:#6cc19a;--brick:#ef8f76;--grey:#3a4650}}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+a{color:inherit}
+.wrap{max-width:1040px;margin:0 auto;padding:0 18px 50px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 18px;padding:26px 0 14px}
+header div{flex:1;min-width:240px}
+h1{font:600 28px/1.15 "IBM Plex Serif",Georgia,serif;margin:0}
+.sub{color:var(--ink-2);margin:6px 0 0}
+.admin{font-size:14px;color:var(--ink-2);text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--card-line);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,30,40,.05)}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px 20px}
+.stat b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--ink-2)}
+.stat.g b{color:var(--field)} .stat.n b{color:var(--brick)}
+.bar{height:10px;border-radius:5px;background:var(--grey);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar.big{margin-top:16px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--ink-3);margin-top:6px;align-items:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.legend .sp{flex:1}
+.linkbtn{background:none;border:0;padding:0;color:var(--ink-2);text-decoration:underline;cursor:pointer;font-size:12px}
+.jump{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:4px 0 12px;padding-bottom:2px}
+.jump::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--card-line);background:var(--card);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.chip i{width:10px;height:10px;border-radius:50%;background:var(--tc)}
+.chip b{font-weight:600;color:var(--tc)}
+.search{width:100%;border:1px solid var(--card-line);border-radius:8px;padding:9px 12px;background:var(--card);margin-bottom:14px;font-size:16px}
+.teh{background:var(--card);border:1px solid var(--card-line);border-left:5px solid var(--tc);border-radius:12px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,40,.05)}
+.th{display:grid;grid-template-columns:1fr auto;gap:6px 16px;padding:14px 16px;cursor:pointer;align-items:center;border:0;background:none;width:100%;text-align:left}
+.th:hover{background:color-mix(in srgb,var(--tc) 5%,transparent)}
+.th h2{margin:0;font-size:18px;color:var(--tc);display:flex;align-items:center;gap:8px}
+.th h2 .car{font-size:12px;color:var(--ink-3);transition:transform .15s}
+.teh.shut .car{transform:rotate(-90deg)}
+.th .pc{font-size:22px;font-weight:600;color:var(--tc);font-variant-numeric:tabular-nums;text-align:right}
+.th .meta{grid-column:1/3;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.th .bar{grid-column:1/3}
+.rows{border-top:1px solid var(--line-2)}
+.teh.shut .rows{display:none}
+.vr{display:grid;grid-template-columns:minmax(140px,1.3fr) 2fr 58px auto;gap:6px 14px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line-2);text-decoration:none}
+.vr:last-child{border-bottom:0}
+.vr:hover{background:color-mix(in srgb,var(--tc) 5%,transparent)}
+.vr .nm{font-weight:600}
+.vr .nm small{display:block;font-weight:400;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.vr .p{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.vr .go{font-size:13px;color:var(--tc);white-space:nowrap}
+.pill{font-size:11px;border-radius:5px;padding:1px 6px;background:var(--line-2);color:var(--ink-3);font-weight:500;margin-left:4px}
+.msg{padding:30px 0;text-align:center;color:var(--ink-3)}
+.err{color:var(--brick)}
+footer{font-size:13px;color:var(--ink-3);padding-top:6px}
+@media (max-width:640px){h1{font-size:23px}.vr{grid-template-columns:1fr 50px}.vr .bar{grid-column:1/3;order:3}.vr .go{display:none}}
+@media (prefers-reduced-motion:reduce){.th h2 .car{transition:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
-
-  <header class="top">
-    <div class="eyebrow">AgriStack · Bandipora · Aadhaar Seeding</div>
-    <h1>Duplicate Pruner</h1>
-    <p>Upload a raw AgriStack extract (24 cols — both Owners and Cultivators) or an Aadhaar collection sheet (11 cols). Same person listed against multiple khasras — whether as owner, cultivator, or both — will be grouped so you can keep one entry per person, then export a clean Aadhaar-tracking sheet.</p>
+  <header>
+    <div><h1>Farmer ID portal – <span id="dist">Bandipora</span></h1>
+    <p class="sub">Progress of Farmer ID generation against AgriStack land buckets, village by village.</p></div>
+    <a class="admin" href="admin.html">Admin login</a>
   </header>
 
-  <div class="steps" id="steps">
-    <div class="step active" data-step="1"><span class="num">1</span> Upload</div>
-    <div class="step" data-step="2"><span class="num">2</span> Review &amp; prune</div>
-    <div class="step" data-step="3"><span class="num">3</span> Download</div>
-  </div>
+  <section class="card" id="district"><div class="msg">Loading…</div></section>
 
-  <!-- ============ STEP 1: UPLOAD ============ -->
-  <section class="panel" id="upload-panel">
-    <h2>Upload the source Excel</h2>
-    <div class="subtitle">Either format works — the tool detects it automatically.</div>
-
-    <label class="drop" id="drop">
-      <div class="icon">📄</div>
-      <div class="primary">Drop the .xlsx file here</div>
-      <div class="secondary">or click to browse</div>
-      <input type="file" id="file-input" accept=".xlsx,.xls">
-    </label>
-
-    <div class="format-note">
-      <strong>Supported:</strong>
-      Raw AgriStack extract — OWNER + CULTIVATOR (both included by default; toggleable).
-      &nbsp;·&nbsp;
-      Aadhaar collection sheet — 11-col format used for paper printouts.
-    </div>
-
-    <div class="file-meta hidden" id="file-meta">
-      <div>
-        <span class="name" id="file-name"></span>
-        <span style="color:var(--muted); margin-left:8px;" id="file-size"></span>
-        <span class="format-badge hidden" id="format-badge"></span>
-      </div>
-      <button class="clear" id="file-clear">Remove</button>
-    </div>
-  </section>
-
-  <!-- ============ STEP 2: REVIEW ============ -->
-  <section id="review-panel" class="hidden">
-
-    <div class="info-bar" id="meta-bar">
-      <div class="item"><span class="k">Village</span><span class="v" id="meta-village">—</span></div>
-      <div class="item"><span class="k">Tehsil</span><span class="v" id="meta-tehsil">—</span></div>
-      <div class="item"><span class="k">District</span><span class="v" id="meta-district">—</span></div>
-      <div class="item"><span class="k">Source</span><span class="v" id="meta-source">—</span></div>
-    </div>
-
-    <!-- Type inclusion filter (visible only for AgriStack) -->
-    <div class="type-filter hidden" id="type-filter">
-      <span class="lbl">Include:</span>
-      <label id="lbl-owner" class="on">
-        <input type="checkbox" id="inc-owner" checked>
-        <span class="type-badge owner">OWNER</span>
-        <span id="cnt-owner">0</span>
-      </label>
-      <label id="lbl-cult" class="on">
-        <input type="checkbox" id="inc-cult" checked>
-        <span class="type-badge cult">CULTIVATOR</span>
-        <span id="cnt-cult">0</span>
-      </label>
-      <span class="counts" id="filter-note">Same person as both roles is treated as one entry (BOTH)</span>
-    </div>
-
-    <div class="stats">
-      <div class="stat"><div class="label">Rows (filtered)</div><div class="value" id="stat-total">0</div></div>
-      <div class="stat"><div class="label">Unique persons</div><div class="value" id="stat-unique">0</div></div>
-      <div class="stat"><div class="label">Duplicate groups</div><div class="value" id="stat-groups">0</div></div>
-      <div class="stat prune"><div class="label">Marked to prune</div><div class="value" id="stat-prune">0</div></div>
-      <div class="stat keep"><div class="label">Will remain</div><div class="value" id="stat-keep">0</div></div>
-    </div>
-
-    <div class="search-block">
-      <div class="search-input-wrap">
-        <input type="search" id="search" placeholder="Search by name or parentage — e.g. abdul rashid" autocomplete="off">
-        <span class="search-hits" id="search-hits"></span>
-        <button class="search-clear hidden" id="search-clear">Clear</button>
-      </div>
-    </div>
-
-    <div class="panel" style="padding:16px 20px;">
-      <div class="controls">
-        <label><input type="checkbox" id="show-uniques"> Show unique rows (not just duplicates)</label>
-        <label><input type="checkbox" id="only-warned"> Only warned groups</label>
-        <div class="grow"></div>
-        <button class="btn" id="expand-all">Expand all</button>
-        <button class="btn" id="collapse-all">Collapse all</button>
-      </div>
-
-      <div class="notice">
-        <strong>Default:</strong> the first row in each duplicate group is kept; the rest are marked to prune. Untick a row to keep it as a separate person. When exported, the <strong>Khewat / Khata / Khasra</strong> of every pruned row are consolidated onto the kept row (one line per parcel, sorted by Khewat, columns stay aligned) — and each unique Khewat gets its own font colour applied to all three columns, so same-holding parcels are easy to spot at a glance. If a person appears as both OWNER and CULTIVATOR, their group is tagged <span class="type-badge both">BOTH</span> and only one entry is kept — one Aadhaar covers both.
-      </div>
-
-      <div class="items" id="items"></div>
-
-      <div class="notice hidden" id="no-dupes">
-        <strong>No duplicates found.</strong> Every (name, parentage) pair in this sheet is unique. You can proceed straight to download.
-      </div>
-    </div>
-
-    <div class="sticky-actions">
-      <div class="summary">
-        <strong id="live-remove">0</strong> rows marked to remove ·
-        <strong id="live-keep">0</strong> rows will be in the output
-      </div>
-      <button class="btn" id="reset-btn">Reset selections</button>
-      <button class="btn-primary btn btn-big" id="prune-btn">Prune duplicates →</button>
-    </div>
-  </section>
-
-  <!-- ============ STEP 3: DOWNLOAD ============ -->
-  <section id="download-panel" class="hidden">
-    <div class="download-panel">
-      <div class="check">✓</div>
-      <h2>Ready to download</h2>
-      <p>Cleaned sheet has <strong id="final-count">0</strong> rows. Khewat / Khata / Khasra values from pruned duplicates are retained on the kept row — one line per parcel, sorted by Khewat, with each unique Khewat in its own font colour across all three columns so same-holding parcels are easy to spot. Includes <strong>TYPE</strong> (OWNER / CULTIVATOR / BOTH), <strong>STATUS</strong> (Issued / Pending dropdown), and a <strong>REASON</strong> column.</p>
-      <button class="btn-primary btn btn-big" id="download-btn">⬇ Download cleaned Excel</button>
-      <button class="btn" id="back-btn">← Back to review</button>
-    </div>
-  </section>
-
+  <div class="jump" id="jump"></div>
+  <input class="search" id="q" type="search" placeholder="Search village" autocomplete="off">
+  <div id="tehsils"></div>
+  <footer>Tap a village to open its page. Anyone can view; a village's username and password are needed only to enter data.</footer>
 </div>
 
 <script>
-'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Number(n||0).toLocaleString('en-IN');
+const pct=(a,b)=>b?Math.round(a*1000/b)/10:0;
+const slug=v=>String(v||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');   // same rule as the generator
+// tehsil colours: no green / red / amber, so they never look like progress colours
+const PALETTE=['#2b5d9b','#7a3f9d','#3f4fb0','#a3345f','#1f6f8b','#6b4f2a','#5b3fa0','#8a3f7a','#2f4f6f','#556070'];
+const tColor=t=>{let h=0; for(const c of String(t)) h=(h*31+c.charCodeAt(0))>>>0; return PALETTE[h%PALETTE.length];};
+let D=null, open=new Set(), firstRender=true;
 
-// ============ STATE ============
-let state = {
-  file: null,
-  format: null,       // 'agristack' | 'collection'
-  meta: {village: '', tehsil: '', district: ''},
-  rawRows: [],        // ALL parsed rows with .type ('OWNER'|'CULTIVATOR')
-  rows: [],           // filtered by includeOwner/includeCult
-  groups: [],         // duplicate groups (size > 1)
-  uniques: [],        // rows not in any dup group
-  prune: new Set(),
-  includeOwner: true,
-  includeCult: true,
-  filter: '',
-  showUniques: false,
-  onlyWarned: false,
-};
-
-// ============ HELPERS ============
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-const setStep = (n) => $$('.step').forEach(el => {
-  const s = parseInt(el.dataset.step);
-  el.classList.remove('active', 'done');
-  if (s === n) el.classList.add('active');
-  else if (s < n) el.classList.add('done');
-});
-const fmtBytes = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(2) + ' MB';
-const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-const cleanNum = (v) => {
-  if (v === null || v === undefined || v === '') return '';
-  const s = String(v).trim();
-  const n = parseFloat(s);
-  if (!isNaN(n) && String(n) === s) return String(n);
-  if (!isNaN(n) && s.match(/^\d+\.0+$/)) return String(Math.trunc(n));
+function roll(list){
+  const s={villages:list.length,total:0,generated:0,not_generated:0,farmer_ids:0};
+  list.forEach(v=>{s.total+=v.total; s.generated+=v.generated; s.not_generated+=v.not_generated; s.farmer_ids+=v.farmer_ids;});
+  s.not_claimed=Math.max(0,s.total-s.generated); s.pending=Math.max(0,s.total-s.generated-s.not_generated); s.pct=pct(s.generated,s.total);
   return s;
-};
+}
+const bar=(s,cls='')=>`<div class="bar ${cls}" role="img" aria-label="${s.pct}% claimed"><i style="width:${s.total?s.generated*100/s.total:0}%;background:var(--field)"></i><i style="width:${s.total?s.not_generated*100/s.total:0}%;background:var(--brick)"></i></div>`;
 
-// ============ FILE INPUT ============
-const drop = $('#drop'), fileInput = $('#file-input'), fileMeta = $('#file-meta');
-drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragging'); });
-drop.addEventListener('dragleave', () => drop.classList.remove('dragging'));
-drop.addEventListener('drop', (e) => {
-  e.preventDefault(); drop.classList.remove('dragging');
-  const f = e.dataTransfer.files[0]; if (f) handleFile(f);
+async function load(){
+  try{
+    if(!APPS_SCRIPT_URL||APPS_SCRIPT_URL.startsWith('__')) throw new Error('The portal address is not set in index.html.');
+    const r=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'publicSummary'})});
+    const j=await r.json(); if(!j.ok) throw new Error(j.error||'Could not load');
+    D=j; render();
+  }catch(e){ $('#district').innerHTML=`<div class="msg err">${esc(e.message)} <button class="linkbtn" onclick="load()">Try again</button></div>`; }
+}
+function render(){
+  const q=$('#q').value.trim().toLowerCase();
+  const all=D.villages;
+  const d=roll(all);
+  $('#dist').textContent=D.district;
+  $('#district').innerHTML=`<div class="stats">
+      <div class="stat"><b>${fmt(d.villages)}</b><span>village${d.villages===1?"":"s"}</span></div>
+      <div class="stat"><b>${fmt(d.total)}</b><span>total buckets</span></div>
+      <div class="stat g"><b>${fmt(d.generated)}</b><span>buckets claimed</span></div>
+      <div class="stat n"><b>${fmt(d.not_claimed)}</b><span>buckets not claimed</span></div>
+      <div class="stat"><b>${fmt(d.farmer_ids)}</b><span>Farmer IDs generated</span></div>
+      <div class="stat"><b>${d.pct}%</b><span>of buckets claimed</span></div></div>
+    ${bar(d,'big')}
+    <div class="legend"><span><i style="background:var(--field)"></i>Claimed ${fmt(d.generated)}</span><span><i style="background:var(--brick)"></i>Not generated ${fmt(d.not_generated)}</span><span><i style="background:var(--grey)"></i>Not yet entered ${fmt(d.pending)}</span>
+      <span class="sp"></span><span>Updated ${new Date(D.at).toLocaleTimeString([],{timeStyle:'short'})} <button class="linkbtn" id="rf">Refresh</button></span></div>`;
+  const tehs=D.tehsils.filter(t=>all.some(v=>v.tehsil===t));
+  if(firstRender){ if(tehs.length<=3) tehs.forEach(t=>open.add(t)); firstRender=false; }
+  $('#jump').innerHTML=tehs.length>1?tehs.map(t=>{const s=roll(all.filter(v=>v.tehsil===t)); return `<button class="chip" data-t="${esc(t)}" style="--tc:${tColor(t)}"><i></i>${esc(t)} <b>${s.pct}%</b></button>`;}).join(''):'';
+  const html=tehs.map(t=>{
+    const vs=all.filter(v=>v.tehsil===t&&(!q||v.village.toLowerCase().includes(q))).sort((a,b)=>a.village.localeCompare(b.village));
+    if(q&&!vs.length) return '';
+    const s=roll(vs), shut=!(open.has(t)||q);
+    return `<section class="teh ${shut?'shut':''}" id="t-${slug(t)}" style="--tc:${tColor(t)}">
+      <button class="th" data-t="${esc(t)}" aria-expanded="${!shut}">
+        <h2><span class="car">▼</span>${esc(t)}</h2><span class="pc">${s.pct}%</span>
+        <span class="meta">${s.villages} village${s.villages===1?'':'s'} · ${fmt(s.total)} buckets · ${fmt(s.generated)} claimed · ${fmt(s.not_generated)} not generated · ${fmt(s.pending)} not yet entered · ${fmt(s.farmer_ids)} Farmer IDs</span>
+        ${bar(s)}</button>
+      <div class="rows">${vs.map(v=>{const r=roll([v]); return `<a class="vr" href="${slug(v.village)}.html">
+          <span class="nm">${esc(v.village)}${!v.active?'<span class="pill">closed</span>':''}<small>${fmt(r.generated)} of ${fmt(r.total)} claimed · ${fmt(r.farmer_ids)} IDs${v.last_entry?' · last entry '+new Date(v.last_entry).toLocaleDateString([],{day:'numeric',month:'short'}):''}</small></span>
+          ${bar(r)}<span class="p">${r.pct}%</span><span class="go">Open →</span></a>`;}).join('')}</div>
+    </section>`;}).join('');
+  $('#tehsils').innerHTML=html||`<div class="msg">${q?'No village matches.':'No villages yet.'}</div>`;
+}
+document.addEventListener('click',e=>{
+  if(e.target.id==='rf'){ $('#district').innerHTML='<div class="msg">Loading…</div>'; load(); return; }
+  const th=e.target.closest('.th'); if(th){ const t=th.dataset.t; open.has(t)?open.delete(t):open.add(t); render(); return; }
+  const c=e.target.closest('.chip'); if(c){ const t=c.dataset.t; open.add(t); render(); document.getElementById('t-'+slug(t)).scrollIntoView({behavior:'smooth',block:'start'}); }
 });
-fileInput.addEventListener('change', (e) => { const f = e.target.files[0]; if (f) handleFile(f); });
-$('#file-clear').addEventListener('click', () => {
-  state = {...state, file: null, rawRows: [], rows: [], groups: [], uniques: [], prune: new Set(), filter: '', includeOwner: true, includeCult: true};
-  fileInput.value = '';
-  fileMeta.classList.add('hidden');
-  $('#review-panel').classList.add('hidden');
-  $('#download-panel').classList.add('hidden');
-  setStep(1);
-});
-
-async function handleFile(file) {
-  state.file = file;
-  $('#file-name').textContent = file.name;
-  $('#file-size').textContent = fmtBytes(file.size);
-  fileMeta.classList.remove('hidden');
-  try {
-    await parseFile(file);
-    const badge = $('#format-badge');
-    badge.textContent = state.format === 'agristack' ? 'Raw AgriStack' : 'Collection Sheet';
-    badge.classList.remove('hidden');
-
-    // Show type filter only for AgriStack (collection sheet has no type info)
-    if (state.format === 'agristack') {
-      $('#type-filter').classList.remove('hidden');
-      const nOwner = state.rawRows.filter(r => r.type === 'OWNER').length;
-      const nCult = state.rawRows.filter(r => r.type === 'CULTIVATOR').length;
-      $('#cnt-owner').textContent = `(${nOwner.toLocaleString()} rows)`;
-      $('#cnt-cult').textContent = `(${nCult.toLocaleString()} rows)`;
-    } else {
-      $('#type-filter').classList.add('hidden');
-    }
-
-    applyFilterAndRegroup();
-    $('#review-panel').classList.remove('hidden');
-    $('#download-panel').classList.add('hidden');
-    setStep(2);
-    $('#review-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
-  } catch (err) {
-    alert('Could not read this file:\n\n' + err.message);
-    console.error(err);
-  }
-}
-
-// ============ FORMAT DETECTION & PARSING ============
-function detectFormat(rows) {
-  const scan = rows.slice(0, 6).flat().map(c => String(c || '').trim().toLowerCase());
-  if (scan.some(h => h === 'farmland plot id' || h === 'land holder type' ||
-                     (h === 'owner name' && scan.includes('identifier type')))) {
-    return 'agristack';
-  }
-  if (scan.some(h => h === 's.no.' || h === 's. no.' || h.includes('aadhar details'))) {
-    return 'collection';
-  }
-  return null;
-}
-
-async function parseFile(file) {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, {type: 'array'});
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, {header: 1, defval: '', raw: false});
-
-  const format = detectFormat(rows);
-  if (!format) throw new Error('Unrecognized file format. Expected either a raw AgriStack extract or an Aadhaar collection sheet.');
-  state.format = format;
-
-  if (format === 'agristack') parseAgriStackFormat(rows);
-  else parseCollectionFormat(rows);
-
-  if (state.rawRows.length === 0) throw new Error('No usable data rows found.');
-}
-
-function parseAgriStackFormat(rows) {
-  let headerRowIdx = -1;
-  for (let i = 0; i < Math.min(rows.length, 5); i++) {
-    const cells = rows[i].map(c => String(c).trim().toLowerCase());
-    if (cells.includes('farmland plot id') || cells.includes('owner name')) {
-      headerRowIdx = i; break;
-    }
-  }
-  if (headerRowIdx < 0) throw new Error('Could not find AgriStack header row.');
-
-  const headers = rows[headerRowIdx].map(c => String(c).trim().toLowerCase());
-  const findCol = (...names) => {
-    for (const n of names) {
-      const idx = headers.findIndex(h => h === n.toLowerCase());
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  };
-  const cols = {
-    khewat: findCol('khewat no', 'khewat no.', 'khewat'),
-    khata: findCol('khata no', 'khata no.', 'khata'),
-    khasra: findCol('khasra no', 'khasra no.', 'khasra'),
-    ownerName: findCol('owner name'),
-    idName: findCol('identifier name'),
-    idType: findCol('identifier type'),
-    landHolderType: findCol('land holder type'),
-    village: findCol('village name'),
-  };
-  const missing = ['khewat','khata','khasra','ownerName','idName','idType','landHolderType']
-    .filter(k => cols[k] < 0);
-  if (missing.length) throw new Error('Missing AgriStack columns: ' + missing.join(', '));
-
-  let dataStart = headerRowIdx + 1;
-  while (dataStart < rows.length) {
-    const row = rows[dataStart];
-    if (row.some(c => String(c).trim() !== '')) break;
-    dataStart++;
-  }
-
-  const data = [];
-  let villageName = '';
-  for (let i = dataStart; i < rows.length; i++) {
-    const row = rows[i];
-    const lht = String(row[cols.landHolderType] || '').trim().toUpperCase();
-    if (lht !== 'OWNER' && lht !== 'CULTIVATOR') continue;  // skip unclassified rows
-
-    const name = String(row[cols.ownerName] || '').trim();
-    if (!name) continue;
-
-    const idType = String(row[cols.idType] || '').trim();
-    const idName = String(row[cols.idName] || '').trim();
-    const parentage = idType ? `(${idType}) ${idName}`.trim() : idName;
-
-    if (cols.village >= 0 && !villageName) {
-      villageName = String(row[cols.village] || '').trim();
-    }
-
-    data.push({
-      origIdx: data.length,
-      sno: String(data.length + 1),
-      khewat: cleanNum(row[cols.khewat]),
-      khata: cleanNum(row[cols.khata]),
-      khasra: cleanNum(row[cols.khasra]),
-      name,
-      parentage,
-      type: lht,
-      groupKey: norm(name) + '|' + norm(parentage),
-    });
-  }
-
-  state.meta = {
-    village: (villageName || '').toUpperCase(),
-    tehsil: 'BANDIPORA',
-    district: 'Bandipora',
-  };
-  state.rawRows = data;
-}
-
-function parseCollectionFormat(rows) {
-  let headerRowIdx = -1;
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
-    const cells = rows[i].map(c => String(c).trim().toUpperCase());
-    if (cells.includes('S.NO.') || cells.includes('S. NO.') || cells.includes('SNO')) {
-      headerRowIdx = i; break;
-    }
-  }
-  if (headerRowIdx < 0) throw new Error('Could not find collection sheet header row.');
-
-  const headers = rows[headerRowIdx].map(c => String(c).trim().toUpperCase());
-  const findCol = (...names) => {
-    for (const n of names) {
-      const idx = headers.findIndex(h => h === n);
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  };
-  const cols = {
-    sno: findCol('S.NO.', 'S. NO.', 'SNO'),
-    khewat: findCol('KHEWAT', 'KHEWAT NO.'),
-    khata: findCol('KHATA', 'KHATA NO.'),
-    khasra: findCol('KHASRA', 'KHASRA NO.'),
-    name: findCol('NAME', 'OWNER NAME'),
-    parentage: findCol('PARENTAGE', 'IDENTIFIER'),
-    type: findCol('TYPE'),  // may exist in v3-generated sheets
-  };
-  ['sno','khewat','khasra','name','parentage'].forEach(k => {
-    if (cols[k] < 0) throw new Error('Missing column: ' + k.toUpperCase());
-  });
-
-  let dataStart = headerRowIdx + 1;
-  const nextRow = rows[dataStart] || [];
-  const nextCells = nextRow.map(c => String(c).trim().toUpperCase());
-  const isSubHeader = nextCells.includes('AADHAR NO.') || nextCells.includes('RESIDENCE') ||
-                      (nextCells.filter(x => x).length < 6 && nextCells.some(x => ['NAME','PARENTAGE','RESIDENCE'].includes(x)));
-  if (isSubHeader) dataStart++;
-
-  const title = rows[0] && rows[0][0] ? String(rows[0][0]) : '';
-  const village = (title.match(/Village\s*:\s*([^|]+)/i) || [,''])[1].trim();
-  const tehsil = (title.match(/Tehsil\s*:\s*([^|]+)/i) || [,''])[1].trim();
-  const district = (title.match(/District\s*:\s*([^|]+)/i) || [,''])[1].trim();
-  state.meta = {village, tehsil, district};
-
-  const data = [];
-  for (let i = dataStart; i < rows.length; i++) {
-    const row = rows[i];
-    const name = String(row[cols.name] || '').trim();
-    if (!name) continue;
-    const parentage = String(row[cols.parentage] || '').trim();
-    const type = cols.type >= 0 ? String(row[cols.type] || 'OWNER').trim().toUpperCase() : 'OWNER';
-    data.push({
-      origIdx: data.length,
-      sno: String(row[cols.sno] || '').trim() || String(data.length + 1),
-      khewat: cleanNum(row[cols.khewat]),
-      khata: cols.khata >= 0 ? cleanNum(row[cols.khata]) : '',
-      khasra: cleanNum(row[cols.khasra]),
-      name, parentage, type,
-      groupKey: norm(name) + '|' + norm(parentage),
-    });
-  }
-  state.rawRows = data;
-}
-
-// ============ FILTER + GROUP ============
-function applyFilterAndRegroup() {
-  // Filter raw rows by type inclusion
-  const filtered = state.rawRows.filter(r => {
-    if (r.type === 'OWNER' && !state.includeOwner) return false;
-    if (r.type === 'CULTIVATOR' && !state.includeCult) return false;
-    return true;
-  });
-  // Re-number sequentially post-filter for group ordering
-  filtered.forEach((r, i) => { r.filterIdx = i; });
-  state.rows = filtered;
-
-  buildGroups();
-  initialPruneSelection();
-  renderReview();
-}
-
-function buildGroups() {
-  const map = new Map();
-  state.rows.forEach(r => {
-    if (!map.has(r.groupKey)) {
-      map.set(r.groupKey, {id: 0, key: r.groupKey, name: r.name, parentage: r.parentage, rows: [], typeAgg: null});
-    }
-    const g = map.get(r.groupKey);
-    g.rows.push(r);
-    r.group = g;
-  });
-
-  // Compute aggregate type per group
-  for (const g of map.values()) {
-    const types = new Set(g.rows.map(r => r.type));
-    if (types.has('OWNER') && types.has('CULTIVATOR')) g.typeAgg = 'BOTH';
-    else if (types.has('OWNER')) g.typeAgg = 'OWNER';
-    else g.typeAgg = 'CULTIVATOR';
-  }
-
-  const dupGroups = [], uniques = [];
-  let gid = 1;
-  for (const g of map.values()) {
-    if (g.rows.length > 1) {
-      g.id = gid++;
-      dupGroups.push(g);
-    } else {
-      uniques.push(g.rows[0]);
-    }
-  }
-  dupGroups.sort((a, b) => b.rows.length - a.rows.length || a.name.localeCompare(b.name));
-  uniques.sort((a, b) => a.name.localeCompare(b.name));
-  state.groups = dupGroups;
-  state.uniques = uniques;
-}
-
-function initialPruneSelection() {
-  state.prune.clear();
-  for (const g of state.groups) {
-    // Prefer keeping an OWNER row when the group has both types
-    const sorted = [...g.rows].sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'OWNER' ? -1 : 1;
-      return a.filterIdx - b.filterIdx;
-    });
-    for (let i = 1; i < sorted.length; i++) state.prune.add(sorted[i].origIdx);
-  }
-}
-
-// ============ RENDER ============
-function typeBadgeHtml(type) {
-  if (type === 'OWNER') return '<span class="type-badge owner">Owner</span>';
-  if (type === 'CULTIVATOR') return '<span class="type-badge cult">Cult.</span>';
-  if (type === 'BOTH') return '<span class="type-badge both">Both</span>';
-  return '';
-}
-
-function renderReview() {
-  $('#meta-village').textContent = state.meta.village || '—';
-  $('#meta-tehsil').textContent = state.meta.tehsil || '—';
-  $('#meta-district').textContent = state.meta.district || '—';
-
-  const srcParts = [state.format === 'agristack' ? 'AgriStack' : 'Collection sheet'];
-  if (state.format === 'agristack') {
-    const incl = [];
-    if (state.includeOwner) incl.push('OWNER');
-    if (state.includeCult) incl.push('CULTIVATOR');
-    srcParts.push(incl.join(' + ') || 'none');
-  }
-  $('#meta-source').textContent = srcParts.join(' · ');
-
-  const total = state.rows.length;
-  const unique = state.uniques.length + state.groups.length;
-  const nGroups = state.groups.length;
-  updateLiveStats();
-  $('#stat-total').textContent = total.toLocaleString();
-  $('#stat-unique').textContent = unique.toLocaleString();
-  $('#stat-groups').textContent = nGroups.toLocaleString();
-
-  const container = $('#items');
-  container.innerHTML = '';
-
-  const filter = state.filter.toLowerCase().trim();
-  const hasFilter = filter.length > 0;
-
-  const shownGroups = state.groups.filter(g => {
-    if (hasFilter && !g.name.toLowerCase().includes(filter) && !g.parentage.toLowerCase().includes(filter)) return false;
-    if (state.onlyWarned) {
-      const allPruned = g.rows.every(r => state.prune.has(r.origIdx));
-      if (!allPruned) return false;
-    }
-    return true;
-  });
-
-  let shownUniques = [];
-  if ((state.showUniques || hasFilter) && !state.onlyWarned) {
-    shownUniques = state.uniques.filter(r => {
-      if (!hasFilter) return true;
-      return r.name.toLowerCase().includes(filter) || r.parentage.toLowerCase().includes(filter);
-    });
-  }
-
-  const hitsEl = $('#search-hits'), clearEl = $('#search-clear');
-  if (hasFilter) {
-    const groupHits = shownGroups.reduce((s, g) => s + g.rows.length, 0);
-    hitsEl.textContent = `${(groupHits + shownUniques.length).toLocaleString()} matches`;
-    clearEl.classList.remove('hidden');
-  } else {
-    hitsEl.textContent = '';
-    clearEl.classList.add('hidden');
-  }
-
-  if (state.groups.length === 0 && !state.showUniques && !hasFilter) {
-    $('#no-dupes').classList.remove('hidden');
-    return;
-  }
-  $('#no-dupes').classList.add('hidden');
-
-  if (shownGroups.length === 0 && shownUniques.length === 0) {
-    container.innerHTML = '<div class="no-results">No entries match this filter.</div>';
-    return;
-  }
-
-  for (const g of shownGroups) container.appendChild(renderGroup(g, filter));
-  for (const u of shownUniques) container.appendChild(renderUnique(u, filter));
-}
-
-function highlight(text, term) {
-  if (!term) return escapeHtml(text);
-  const safe = escapeHtml(text);
-  const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-  return safe.replace(re, '<mark>$1</mark>');
-}
-
-function renderGroup(g, filter) {
-  const div = document.createElement('div');
-  div.className = 'group';
-  div.dataset.groupId = g.id;
-
-  const header = document.createElement('div');
-  header.className = 'group-header';
-  header.innerHTML = `
-    <span class="group-badge">#${g.id}</span>
-    ${typeBadgeHtml(g.typeAgg)}
-    <span class="group-name">${highlight(g.name, filter)}</span>
-    <span class="group-parentage">${highlight(g.parentage, filter)}</span>
-    <span class="group-count">${g.rows.length} entries</span>
-    <span class="group-toggle">▼</span>
-  `;
-  header.addEventListener('click', () => div.classList.toggle('collapsed'));
-  div.appendChild(header);
-
-  const body = document.createElement('div');
-  body.className = 'group-body';
-
-  const sortedRows = [...g.rows].sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'OWNER' ? -1 : 1;
-    return a.filterIdx - b.filterIdx;
-  });
-  const table = document.createElement('table');
-  table.className = 'rows';
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Prune</th>
-        <th>Row #</th>
-        <th>Type</th>
-        <th>Khewat</th>
-        <th>Khata</th>
-        <th>Khasra</th>
-        <th>Name</th>
-        <th>Parentage</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-  const tbody = table.querySelector('tbody');
-  sortedRows.forEach(r => {
-    const tr = document.createElement('tr');
-    const willPrune = state.prune.has(r.origIdx);
-    tr.className = willPrune ? 'will-prune' : 'will-keep';
-    tr.innerHTML = `
-      <td class="checkbox-cell"><input type="checkbox" class="cb" ${willPrune ? 'checked' : ''} data-idx="${r.origIdx}"></td>
-      <td class="sno">${escapeHtml(String(r.filterIdx + 1))}</td>
-      <td class="type-cell">${typeBadgeHtml(r.type)}</td>
-      <td class="khewat">${escapeHtml(r.khewat)}</td>
-      <td class="khata">${escapeHtml(r.khata)}</td>
-      <td class="khasra">${escapeHtml(r.khasra)}</td>
-      <td class="name">${highlight(r.name, filter)}</td>
-      <td class="parent">${highlight(r.parentage, filter)}</td>
-      <td class="status-cell">${willPrune ? 'Prune' : 'Keep'}</td>
-    `;
-    tr.querySelector('.cb').addEventListener('change', (e) => {
-      const idx = parseInt(e.target.dataset.idx);
-      if (e.target.checked) state.prune.add(idx); else state.prune.delete(idx);
-      tr.className = e.target.checked ? 'will-prune' : 'will-keep';
-      tr.querySelector('.status-cell').textContent = e.target.checked ? 'Prune' : 'Keep';
-      updateGroupWarning(div, g);
-      updateLiveStats();
-    });
-    tbody.appendChild(tr);
-  });
-  body.appendChild(table);
-
-  const actions = document.createElement('div');
-  actions.className = 'group-actions';
-  actions.innerHTML = `
-    <button data-act="keep-all">Keep all as separate</button>
-    <button data-act="keep-first">Keep first only (default)</button>
-  `;
-  actions.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const act = e.target.dataset.act;
-      if (act === 'keep-all') g.rows.forEach(r => state.prune.delete(r.origIdx));
-      else if (act === 'keep-first') {
-        const sorted = [...g.rows].sort((a, b) => {
-          if (a.type !== b.type) return a.type === 'OWNER' ? -1 : 1;
-          return a.filterIdx - b.filterIdx;
-        });
-        sorted.forEach((r, i) => {
-          if (i === 0) state.prune.delete(r.origIdx);
-          else state.prune.add(r.origIdx);
-        });
-      }
-      const newDiv = renderGroup(g, state.filter);
-      div.replaceWith(newDiv);
-      updateLiveStats();
-    });
-  });
-  body.appendChild(actions);
-
-  const warn = document.createElement('div');
-  warn.className = 'group-warning';
-  warn.textContent = '⚠ All rows in this group are marked for pruning — this person will be removed entirely from the output.';
-  body.appendChild(warn);
-
-  div.appendChild(body);
-  updateGroupWarning(div, g);
-  return div;
-}
-
-function renderUnique(r, filter) {
-  const div = document.createElement('div');
-  div.className = 'unique-item';
-  div.innerHTML = `
-    <div class="unique-header">
-      <span class="unique-badge">UNIQUE</span>
-      ${typeBadgeHtml(r.type)}
-      <span class="unique-name">${highlight(r.name, filter)}</span>
-      <span class="unique-parentage">${highlight(r.parentage, filter)}</span>
-      <span class="unique-loc">Khewat ${escapeHtml(r.khewat || '—')} · Khata ${escapeHtml(r.khata || '—')} · Khasra ${escapeHtml(r.khasra || '—')}</span>
-    </div>
-  `;
-  return div;
-}
-
-function updateGroupWarning(div, g) {
-  const allPruned = g.rows.every(r => state.prune.has(r.origIdx));
-  div.classList.toggle('all-pruned', allPruned);
-}
-
-function updateLiveStats() {
-  const nPrune = state.prune.size;
-  const nKeep = state.rows.length - nPrune;
-  $('#stat-prune').textContent = nPrune.toLocaleString();
-  $('#stat-keep').textContent = nKeep.toLocaleString();
-  $('#live-remove').textContent = nPrune.toLocaleString();
-  $('#live-keep').textContent = nKeep.toLocaleString();
-}
-
-// ============ CONTROLS ============
-$('#inc-owner').addEventListener('change', (e) => {
-  state.includeOwner = e.target.checked;
-  $('#lbl-owner').classList.toggle('on', e.target.checked);
-  if (!state.includeOwner && !state.includeCult) {
-    e.target.checked = true;
-    state.includeOwner = true;
-    $('#lbl-owner').classList.add('on');
-    alert('At least one type must be included.');
-    return;
-  }
-  applyFilterAndRegroup();
-});
-$('#inc-cult').addEventListener('change', (e) => {
-  state.includeCult = e.target.checked;
-  $('#lbl-cult').classList.toggle('on', e.target.checked);
-  if (!state.includeOwner && !state.includeCult) {
-    e.target.checked = true;
-    state.includeCult = true;
-    $('#lbl-cult').classList.add('on');
-    alert('At least one type must be included.');
-    return;
-  }
-  applyFilterAndRegroup();
-});
-
-let searchTimer;
-$('#search').addEventListener('input', (e) => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    state.filter = e.target.value;
-    renderReview();
-  }, 100);
-});
-$('#search-clear').addEventListener('click', () => {
-  $('#search').value = '';
-  state.filter = '';
-  renderReview();
-  $('#search').focus();
-});
-$('#show-uniques').addEventListener('change', (e) => {
-  state.showUniques = e.target.checked;
-  renderReview();
-});
-$('#only-warned').addEventListener('change', (e) => {
-  state.onlyWarned = e.target.checked;
-  renderReview();
-});
-$('#expand-all').addEventListener('click', () => $$('.group').forEach(g => g.classList.remove('collapsed')));
-$('#collapse-all').addEventListener('click', () => $$('.group').forEach(g => g.classList.add('collapsed')));
-$('#reset-btn').addEventListener('click', () => {
-  if (confirm('Reset all selections back to the default (keep first row of each group, prune the rest)?')) {
-    initialPruneSelection();
-    renderReview();
-  }
-});
-
-// ============ PRUNE → DOWNLOAD ============
-$('#prune-btn').addEventListener('click', () => {
-  const kept = state.rows.filter(r => !state.prune.has(r.origIdx));
-  $('#final-count').textContent = kept.length.toLocaleString();
-  $('#review-panel').classList.add('hidden');
-  $('#download-panel').classList.remove('hidden');
-  setStep(3);
-  $('#download-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
-});
-$('#back-btn').addEventListener('click', () => {
-  $('#download-panel').classList.add('hidden');
-  $('#review-panel').classList.remove('hidden');
-  setStep(2);
-});
-$('#download-btn').addEventListener('click', async () => {
-  const btn = $('#download-btn');
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Building Excel…';
-  try { await buildAndDownload(); }
-  catch (err) { alert('Download failed: ' + err.message); console.error(err); }
-  finally { btn.disabled = false; btn.textContent = orig; }
-});
-
-// ============ EXCEL OUTPUT (9 columns) ============
-// For each duplicate group, precompute:
-//   - the "primary" kept row (first non-pruned in sort order — matches the default-keep rule)
-//   - the list of pruned rows whose parcel info should be absorbed onto it
-// Secondary keeps (rows the user manually un-pruned) stay separate and carry only their own values.
-function computeGroupAggregation() {
-  const agg = new Map(); // group.key -> {primary, extras: [rows]}
-  for (const g of state.groups) {
-    const sorted = [...g.rows].sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'OWNER' ? -1 : 1;
-      return a.filterIdx - b.filterIdx;
-    });
-    const primary = sorted.find(r => !state.prune.has(r.origIdx));
-    if (!primary) continue; // whole group pruned → dropped entirely, matches existing behavior
-    const extras = g.rows.filter(r => r !== primary && state.prune.has(r.origIdx));
-    agg.set(g.key, {primary, extras});
-  }
-  return agg;
-}
-
-// Palette of dark, print-safe font colors used to distinguish khewats within a
-// single kept row. Cycled per unique khewat in appearance order — same khewat
-// gets the same color across all three parcel columns so the lines line up
-// visually. 10 colors covers the largest groups (worst case in Brar: 16 rows,
-// but usually far fewer distinct khewats).
-const KHEWAT_COLORS = [
-  'FF1E40AF', // blue-800
-  'FFB45309', // amber-700
-  'FF047857', // emerald-700
-  'FF6D28D9', // violet-700
-  'FFB91C1C', // red-700
-  'FF0F766E', // teal-700
-  'FF4D7C0F', // lime-700
-  'FFA21CAF', // fuchsia-700
-  'FF78350F', // amber-900
-  'FF334155', // slate-700
-];
-
-// Return sorted, deduped (khewat, khata, khasra) triples for a kept row.
-// If this row is the primary keep of its group, absorbs pruned rows' triples.
-// Sorted numerically-then-lexically by khewat → khata → khasra so same-khewat
-// lines cluster together in the output cell.
-function parcelTriplesFor(r, agg) {
-  const triples = [[r.khewat, r.khata, r.khasra]];
-  if (r.group) {
-    const entry = agg.get(r.group.key);
-    if (entry && entry.primary === r) {
-      for (const e of entry.extras) triples.push([e.khewat, e.khata, e.khasra]);
-    }
-  }
-  const seen = new Set(), uniq = [];
-  for (const t of triples) {
-    const k = t.join('|');
-    if (seen.has(k)) continue;
-    seen.add(k);
-    uniq.push(t);
-  }
-  const cmp = (a, b) => {
-    const na = parseFloat(a), nb = parseFloat(b);
-    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
-    return String(a).localeCompare(String(b));
-  };
-  uniq.sort((a, b) => cmp(a[0], b[0]) || cmp(a[1], b[1]) || cmp(a[2], b[2]));
-  return uniq;
-}
-
-// Build the {khewat, khata, khasra, count} cell values for a kept row.
-// Single-parcel rows return plain strings. Multi-parcel rows return rich-text
-// objects where every unique khewat gets a distinct font color, and the same
-// color is applied to that row's khata and khasra values so the three columns
-// line up visually. The khewat column is bolded to emphasize the grouping key.
-function buildParcelCells(triples) {
-  if (triples.length <= 1) {
-    const t = triples[0] || ['', '', ''];
-    return {khewat: t[0], khata: t[1], khasra: t[2], count: triples.length};
-  }
-  const khewatColor = new Map();
-  for (const t of triples) {
-    const k = String(t[0] ?? '');
-    if (!khewatColor.has(k)) {
-      khewatColor.set(k, KHEWAT_COLORS[khewatColor.size % KHEWAT_COLORS.length]);
-    }
-  }
-  const buildRich = (colIdx, bold) => ({
-    richText: triples.map((t, i) => ({
-      text: (i > 0 ? '\n' : '') + String(t[colIdx] ?? ''),
-      font: {size: 11, color: {argb: khewatColor.get(String(t[0] ?? ''))}, bold: !!bold, name: 'Calibri'},
-    })),
-  });
-  return {
-    khewat: buildRich(0, true),
-    khata:  buildRich(1, false),
-    khasra: buildRich(2, false),
-    count:  triples.length,
-  };
-}
-
-async function buildAndDownload() {
-  const kept = state.rows.filter(r => !state.prune.has(r.origIdx));
-  const meta = state.meta;
-  const groupAgg = computeGroupAggregation();
-
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Aadhaar Dedup Tool';
-  wb.created = new Date();
-  const ws = wb.addWorksheet('Aadhaar Collection', {
-    views: [{state: 'frozen', ySplit: 2}],
-    pageSetup: {
-      orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0,
-      margins: {left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3}
-    }
-  });
-
-  // Title row (merged A1:I1) — 9 cols
-  ws.mergeCells('A1:I1');
-  const titleCell = ws.getCell('A1');
-  const titleParts = ['AGRISTACK — AADHAAR SEEDING (POST-DEDUP)'];
-  if (meta.village) titleParts.push('Village: ' + meta.village);
-  if (meta.tehsil) titleParts.push('Tehsil: ' + meta.tehsil);
-  if (meta.district) titleParts.push('District: ' + meta.district);
-  titleCell.value = titleParts.join('  |  ');
-  titleCell.font = {bold: true, size: 12, color: {argb: 'FF1A1D2B'}};
-  titleCell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
-  titleCell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFEEF2FF'}};
-  titleCell.border = {top: {style: 'thin'}, bottom: {style: 'thin'}, left: {style: 'thin'}, right: {style: 'thin'}};
-  ws.getRow(1).height = 28;
-
-  // Header row (9 cols)
-  const headers = ['S.NO.', 'KHEWAT', 'KHATA', 'KHASRA', 'NAME', 'PARENTAGE', 'TYPE', 'STATUS', 'REASON'];
-  const headerRow = ws.getRow(2);
-  headerRow.values = headers;
-  headerRow.height = 26;
-  headerRow.eachCell({includeEmpty: false}, cell => {
-    cell.font = {bold: true, size: 11, color: {argb: 'FF1A1D2B'}};
-    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
-    cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFF0F0F0'}};
-    cell.border = {top: {style: 'thin'}, bottom: {style: 'thin'}, left: {style: 'thin'}, right: {style: 'thin'}};
-  });
-
-  // Data
-  kept.forEach((r, i) => {
-    const row = ws.getRow(i + 3);
-    // Type in output: use group's aggregate type if this row is part of a dup group, else its own type
-    const outType = (r.group && r.group.rows.length > 1) ? r.group.typeAgg : r.type;
-    const triples = parcelTriplesFor(r, groupAgg);
-    const p = buildParcelCells(triples);
-    row.values = [i + 1, p.khewat, p.khata, p.khasra, r.name, r.parentage, outType, '', ''];
-    // Grow height so all parcel lines are visible; top-align when multi-parcel so lines read as a list
-    row.height = 22 + Math.max(0, (p.count - 1) * 15);
-    const vAlign = p.count > 1 ? 'top' : 'middle';
-    row.eachCell({includeEmpty: true}, (cell, colNumber) => {
-      cell.border = {top: {style: 'thin'}, bottom: {style: 'thin'}, left: {style: 'thin'}, right: {style: 'thin'}};
-      cell.alignment = {vertical: vAlign, wrapText: true, horizontal: (colNumber === 1 || colNumber === 7) ? 'center' : 'left'};
-      // Parcel columns (2=Khewat, 3=Khata, 4=Khasra) use rich-text with per-run colors when multi-parcel;
-      // setting a cell-level font would override those runs, so skip it in that case.
-      const isRichParcelCol = p.count > 1 && colNumber >= 2 && colNumber <= 4;
-      if (!isRichParcelCol) cell.font = {size: 11};
-    });
-    // Colour the TYPE cell subtly
-    const tc = row.getCell(7);
-    if (outType === 'OWNER') tc.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFE0F2FE'}};
-    else if (outType === 'CULTIVATOR') tc.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFED7AA'}};
-    else if (outType === 'BOTH') tc.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFEDE9FE'}};
-  });
-
-  // Column widths (9)
-  ws.getColumn(1).width = 7;    // S.No.
-  ws.getColumn(2).width = 10;   // Khewat
-  ws.getColumn(3).width = 10;   // Khata
-  ws.getColumn(4).width = 14;   // Khasra
-  ws.getColumn(5).width = 22;   // Name
-  ws.getColumn(6).width = 22;   // Parentage
-  ws.getColumn(7).width = 12;   // Type
-  ws.getColumn(8).width = 12;   // Status
-  ws.getColumn(9).width = 32;   // Reason
-
-  // Data validation for STATUS column (H = col 8)
-  for (let i = 0; i < kept.length; i++) {
-    const cellRef = `H${i + 3}`;
-    ws.getCell(cellRef).dataValidation = {
-      type: 'list',
-      allowBlank: true,
-      formulae: ['"Issued,Pending"'],
-      showErrorMessage: true,
-      errorStyle: 'stop',
-      errorTitle: 'Invalid status',
-      error: 'Please select "Issued" or "Pending"',
-    };
-  }
-
-  ws.pageSetup.printTitlesRow = '1:2';
-
-  const buf = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const villageTag = (meta.village || 'output').toUpperCase().replace(/[^A-Z0-9]+/g, '_');
-  saveAs(blob, `AADHAAR_COLLECTION_${villageTag}_DEDUPED.xlsx`);
-}
+$('#q').addEventListener('input',()=>D&&render());
+load();
 </script>
 </body>
 </html>
