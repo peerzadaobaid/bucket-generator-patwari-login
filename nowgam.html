@@ -217,7 +217,7 @@ footer{color:var(--ink-3);font-size:13px;padding:10px 0 40px}
   </div>
   <div class="stats" id="stats"></div>
   <div class="bigbar" id="bigbar"></div>
-  <div class="legend"><span><i style="background:var(--field)"></i>Buckets claimed</span><span><i style="background:var(--line)"></i>Buckets not claimed</span><span><i style="background:var(--orange)"></i>Same person in more than one bucket</span></div>
+  <div class="legend"><span><i style="background:var(--field)"></i>Buckets claimed</span><span><i style="background:var(--line)"></i>Buckets not claimed</span><span><i style="background:var(--orange)"></i>Check if same person in more than one bucket</span></div>
 </header>
 
 <div class="bar"><div class="wrap">
@@ -306,7 +306,7 @@ function stats(){
 /* ---------- read-only guidance ---------- */
 function guidance(b,inGroup){
   const out=[];
-  if(b.g&&!inGroup){const g=GR.get(b.g);out.push(`<div class="guide link">Same person as bucket ${g.b.filter(x=>x!==b.id).join(', ')}.</div>`);}
+  if(b.g&&!inGroup){const g=GR.get(b.g);out.push(`<div class="guide link">Check if same person as bucket ${g.b.filter(x=>x!==b.id).join(', ')}?</div>`);}
   if(b.st===3) out.push(`<div class="guide warn">This bucket may hold more than one person. Plots are recorded as:<ul>${b.v.map(v=>`<li>${esc(v[0])} / ${esc(v[1])} (${v[2]} plot${v[2]>1?'s':''})</li>`).join('')}</ul>Check before marking the whole bucket.</div>`);
   else if(b.st>0) out.push(`<div class="guide soft">Also written as ${b.v.slice(1).map(v=>esc(v[0])+' / '+esc(v[1])).join('; ')}. Same person, written differently.</div>`);
   const r=dropRemark(b.r); if(r) out.push(`<div class="guide soft">${esc(r)}</div>`);
@@ -369,7 +369,7 @@ function groupBlock(g,visible){
   const mode=gmode(g.id);
   const ids=g.b.map(x=>(ent(x).fid||'').trim()).filter(Boolean), clash=mode==='sep'&&new Set(ids).size>1;
   return `<section class="group ${g.c==='Medium'?'med':''}" id="g${g.id}">
-    <div class="ghead"><b>${g.c==='High'?'Same person':'Probably the same person'}</b> in buckets ${g.b.join(', ')}${g.cs.length?`, sharing khasra ${g.cs.map(esc).join(', ')}`:''}.${g.c==='Medium'?' Spelling differs; confirm before using one ID.':''}</div>
+    <div class="ghead"><b>Check if same person</b> in buckets ${g.b.join(', ')}?${g.cs.length?` They share khasra ${g.cs.map(esc).join(', ')}.`:''}${g.c==='Medium'?' Spelling differs.':''}</div>
     <div class="gmode" role="group" aria-label="How was the Farmer ID generated"><span>Farmer ID:</span>
       <button class="mbtn ${mode==='one'?'on':''}" data-mode="one" data-g="${g.id}" aria-pressed="${mode==='one'}">One Farmer ID for all ${g.b.length}</button>
       <button class="mbtn ${mode==='sep'?'on':''}" data-mode="sep" data-g="${g.id}" aria-pressed="${mode==='sep'}">Record each bucket separately</button></div>
@@ -424,7 +424,7 @@ const FILTERS=[
   ['gen','Generated',b=>ent(b.id).s==='gen'],
   ['not','Not generated',b=>ent(b.id).s==='not'],
   ['nor','Not generated, no reason',b=>ent(b.id).s==='not'&&!ent(b.id).reason],
-  ['linked','Same person in other buckets',b=>!!b.g],
+  ['linked','Check if same person',b=>!!b.g],
   ['mixed','May hold more than one person',b=>b.st===3],
 ];
 const UNITS=[]; {const seen=new Set();
@@ -522,7 +522,7 @@ function toast(t){const el=$('#toast'); el.textContent=t; el.classList.add('show
 function rowFor(id){
   const b=BY.get(id), e=ent(id);
   let guide='';
-  if(b.g){const g=GR.get(b.g); guide=`${g.c==='High'?'Same person':'Probably same person'} as bucket ${g.b.filter(x=>x!==id).join(', ')}`;}
+  if(b.g){const g=GR.get(b.g); guide=`Check if same person as bucket ${g.b.filter(x=>x!==id).join(', ')}`;}
   if(b.st===3) guide+=(guide?'; ':'')+'May hold more than one person';
   const shared=e.shared?GR.get(e.shared).b:[];
   return {village:VILLAGE,bucket_id:b.u??id,owner:b.v[0][0],parentage:b.v[0][1],
