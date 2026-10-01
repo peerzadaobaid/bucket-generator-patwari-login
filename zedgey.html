@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Farmer ID status by bucket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap" rel="stylesheet">
+<script>
+/* ============ SETTINGS – edit these lines only ============ */
+const VILLAGE = "Zedgey";   // village name – must match the village registered in the admin page
+const TEHSIL = "Sumbal";     // tehsil – must match too
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby5STKAh0QGza6oGW5hXqZZp2kzst_nxchZzSskZ7mOUk-TTVR6aH7Qw7VAjr3LFZ29Ag/exec";  // paste the Apps Script /exec URL to save to Google Sheets
+let REASONS = [];                // filled from the 'Reasons' tab of the Google Sheet after login
+</script>
+<style>
+:root{
+  --ink:#1c2a36; --ink-2:#4a5a67; --ink-3:#7c8a95;
+  --paper:#f5f6f3; --card:#fff; --line:#dde2dc; --line-2:#eceee9;
+  --field:#2f6b4f; --field-bg:#e6f0ea;
+  --amber:#8a5a10; --amber-bg:#fbf1dc;
+  --brick:#a8432a; --brick-bg:#f8e3dc;
+  --slate:#43607a; --slate-bg:#e3eaf1;
+  --orange:#b85a0d; --orange-bg:#fdecd9; --orange-2:#f3c9a0;
+  --hit:#fff1a8;
+  --focus:#2a6fdb; --submit-bg:#f1f4f8; --submit-line:#b9c6d4; --card-line:#c9d0d6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e6ebef; --ink-2:#b3bec7; --ink-3:#86939d;
+    --paper:#141a1f; --card:#1c242b; --line:#2f3a43; --line-2:#252f37;
+    --field:#6cc19a; --field-bg:#1e3329; --amber:#f0c677; --amber-bg:#3a2d17;
+    --brick:#ef8f76; --brick-bg:#3b231d; --slate:#9ab8d3; --slate-bg:#22303d; --submit-bg:#1f2830; --submit-line:#3f4f5d; --card-line:#3a4650; --orange:#f5a45c; --orange-bg:#3a2715; --orange-2:#6b4320; --hit:#5a4d12;
+  }
+}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 130px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:980px;margin:0 auto;padding:0 18px}
+
+header{padding:26px 0 16px}
+h1{font:600 27px/1.15 "IBM Plex Serif",Georgia,serif;margin:0}
+.sub{color:var(--ink-2);margin:6px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:14px}
+.reviewer{display:flex;align-items:center;gap:8px}
+.reviewer label{color:var(--ink-2);font-size:14px}
+.reviewer input{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 10px;width:210px}
+.reviewer input.need{border-color:var(--brick);box-shadow:0 0 0 3px var(--brick-bg)}
+.sync{font-size:13px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
+.sync.ok i{background:var(--field)} .sync.busy i{background:#c98a1b} .sync.err i{background:var(--brick)}
+.linkbtn{background:none;border:0;padding:0;color:var(--slate);text-decoration:underline;cursor:pointer;font-size:13px}
+
+.stats{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:18px;font-variant-numeric:tabular-nums}
+.stat b{font-size:22px;font-weight:600;display:block;line-height:1.1}
+.stat span{font-size:13px;color:var(--ink-2)}
+.stat.g b{color:var(--field)} .stat.n b{color:var(--brick)}
+.bigbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;display:flex;margin-top:12px;max-width:520px}
+.bigbar i{display:block;height:100%}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line);padding:10px 0}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.smode{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.smode button{border:0;background:none;padding:8px 12px;font-size:14px;cursor:pointer;color:var(--ink-2);white-space:nowrap}
+.smode button+button{border-left:1px solid var(--line)}
+.smode button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.qinfo{font-size:13px;color:var(--ink-2);padding-top:6px}
+.qinfo:empty{display:none}
+.qinfo b{color:var(--ink)}
+.search{font-size:16px;flex:1 1 220px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-top:8px}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ink-2);white-space:nowrap}
+.chip em{font-style:normal;color:var(--ink-3);margin-left:4px}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.chip[aria-pressed="true"] em{color:var(--paper);opacity:.7}
+
+main{padding-top:14px}
+.group{border-left:5px solid var(--orange);background:var(--orange-bg);border-radius:10px;padding:10px 10px 2px;margin:0 0 14px}
+.group.med{border-left-style:dashed}
+.ghead{font-size:14px;color:var(--orange);padding:0 4px 8px}
+.ghead b{font-weight:600}
+.warnline{font-size:13px;color:var(--brick);padding:0 4px 8px}
+.warnline:empty{display:none}
+
+.bk{background:var(--card);border:1px solid var(--card-line);border-radius:12px;margin:0 0 18px;display:grid;grid-template-columns:1fr minmax(280px,360px);box-shadow:0 1px 2px rgba(20,30,40,.06),0 3px 10px rgba(20,30,40,.05)}
+.bk.filled{border-color:var(--card-line)}
+.info{padding:14px 16px;min-width:0}
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.uid{margin-top:2px;font-size:11px;color:var(--ink-3);font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+.bid{font-weight:600;font-variant-numeric:tabular-nums;background:var(--ink);color:var(--paper);border-radius:6px;padding:2px 9px;font-size:14px}
+.nm{font-weight:600;font-size:16px}
+.par{color:var(--ink-2);font-size:14px}
+.par::before{content:"Parentage ";color:var(--ink-3)}
+.facts{font-size:13px;color:var(--ink-3);margin-top:3px;font-variant-numeric:tabular-nums}
+.svs{font-size:13px;color:var(--ink-3);word-break:break-word}
+.svs mark{background:none;color:var(--orange);border-bottom:2px solid var(--orange-2);padding:0 1px}
+.svs mark.k,.found mark{background:var(--hit);color:var(--ink);border:0;border-radius:3px;padding:0 4px;font-weight:600}
+.kk{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.kr{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:13px;padding:3px 8px;border-left:4px solid var(--kc);background:color-mix(in srgb,var(--kc) 9%,transparent);border-radius:0 5px 5px 0;color:var(--kc)}
+.kl{font-weight:600;white-space:nowrap}
+.ks{color:var(--kc);word-break:break-word}
+.kr .ks mark{color:var(--kc)}
+.c0{--kc:#2b5d9b}.c1{--kc:#7a3f9d}.c2{--kc:#1f7a74}.c3{--kc:#a3345f}.c4{--kc:#5b6b1f}.c5{--kc:#3f4fb0}.c6{--kc:#7a5230}.c7{--kc:#4a5a67}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .c0{--kc:#8fb6ea}:root:not([data-theme="light"]) .c1{--kc:#c89be4}:root:not([data-theme="light"]) .c2{--kc:#7fd0c8}:root:not([data-theme="light"]) .c3{--kc:#ec9ab9}:root:not([data-theme="light"]) .c4{--kc:#bfcf7a}:root:not([data-theme="light"]) .c5{--kc:#a3aef0}:root:not([data-theme="light"]) .c6{--kc:#d9ae86}:root:not([data-theme="light"]) .c7{--kc:#b3bec7}}
+.found{font-size:13px;margin-top:6px;color:var(--ink-2)}
+.found div{padding:1px 0}
+.bk.match{box-shadow:0 0 0 2px var(--hit)}
+.guide{font-size:13px;margin-top:8px;padding:6px 10px;border-radius:6px}
+.guide.link{background:var(--orange-bg);color:var(--orange)}
+.guide.warn{background:var(--brick-bg);color:var(--brick)}
+.guide.soft{background:var(--line-2);color:var(--ink-2)}
+.guide ul{margin:4px 0 0;padding-left:18px}
+
+.entry{margin:10px;align-self:start;border:1.5px solid var(--submit-line);background:var(--submit-bg);padding:12px 14px;display:flex;flex-direction:column;gap:8px;border-radius:9px}
+.entry.s-gen{border-color:color-mix(in srgb,var(--field) 45%,transparent);background:color-mix(in srgb,var(--field) 6%,var(--card))}
+.entry.s-not{border-color:color-mix(in srgb,var(--brick) 45%,transparent);background:color-mix(in srgb,var(--brick) 6%,var(--card))}
+.elabel{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
+.elabel span{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3);margin-left:6px}
+.entry .sbtn,.entry .rbtn{background:var(--card)}
+.entry.s-gen .elabel{color:var(--field)} .entry.s-not .elabel{color:var(--brick)}
+.seg{display:flex;gap:4px}
+.sbtn{flex:1;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:7px 6px;cursor:pointer;font-size:14px;color:var(--ink-2);white-space:nowrap}
+.sbtn:hover{border-color:var(--ink-3)}
+.rbtn{flex:0 0 auto;border:1px dashed var(--ink-3);background:none;border-radius:7px;padding:7px 10px;cursor:pointer;font-size:14px;color:var(--ink-2)}
+.rbtn:hover:not(:disabled){border-style:solid;color:var(--ink)}
+.rbtn:disabled{opacity:.35;cursor:default}
+.sbtn.on.gen{background:var(--field);border-color:var(--field);color:#fff}
+.sbtn.on.not{background:var(--brick);border-color:var(--brick);color:#fff}
+.entry input,.entry select{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:7px 10px;font-size:14px}
+.entry input.fid{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.use{font-size:13px;color:var(--orange)}
+.use button{border:1px solid var(--orange);background:none;color:var(--orange);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px;margin-left:4px}
+.stamp{font-size:12px;color:var(--ink-3)}
+.clear{background:none;border:0;color:var(--ink-3);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;align-self:flex-start}
+
+.more{display:block;margin:6px auto 30px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 18px;cursor:pointer}
+.empty{padding:40px 0;text-align:center;color:var(--ink-3)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+dialog{border:0;border-radius:12px;padding:0;max-width:760px;width:calc(100% - 24px);max-height:86vh;background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(20,26,31,.45)}
+.dlg{padding:18px 20px 22px}
+.dhead{display:flex;align-items:center;gap:12px;position:sticky;top:0;background:var(--card);padding-bottom:6px}
+.dhead h2{font:600 20px/1.2 "IBM Plex Serif",Georgia,serif;margin:0;flex:1}
+.dclose{border:1px solid var(--line);background:var(--card);border-radius:7px;padding:5px 12px;cursor:pointer}
+.dlg h3{font-size:15px;margin:18px 0 4px}
+.dlg p{margin:4px 0;color:var(--ink-2);font-size:14px;max-width:70ch}
+.mt{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums}
+.mt th{text-align:left;font-weight:500;color:var(--ink-3);border-bottom:1px solid var(--line);padding:5px 6px}
+.mt td{border-bottom:1px solid var(--line-2);padding:5px 6px;vertical-align:top}
+.mt tr.flag td{background:var(--orange-bg)}
+.mtwrap{overflow-x:auto}
+details.cat{border-top:1px solid var(--line-2);padding:6px 0}
+details.cat summary{cursor:pointer;font-size:14px}
+.acct{font-size:14px;color:var(--ink-2)}
+.acct b{color:var(--ink)}
+.login{position:fixed;inset:0;z-index:50;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:20px}
+.login[hidden]{display:none}
+.lbox{width:100%;max-width:360px;background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:26px 24px;box-shadow:0 4px 24px rgba(20,30,40,.08)}
+.lbox h2{font:600 24px/1.2 "IBM Plex Serif",Georgia,serif;margin:0}
+.lsub{color:var(--ink-2);margin:4px 0 16px}
+.lbox label{display:block;font-size:14px;font-weight:600;margin:12px 0 4px}
+.lbox input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--card);font-size:16px}
+.lbtn{width:100%;margin-top:18px;border:0;background:var(--ink);color:var(--paper);border-radius:8px;padding:11px;font-weight:600;cursor:pointer}
+.lbtn:disabled{opacity:.5}
+.lview{display:block;margin:6px auto 0;background:none;border:0;color:var(--slate);text-decoration:underline;cursor:pointer;font-size:14px}
+.loginbtn{border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;font-size:14px}
+.lerr{color:var(--brick);font-size:14px;min-height:1.2em;margin:10px 0 0}
+footer{color:var(--ink-3);font-size:13px;padding:10px 0 40px}
+@media (max-width:720px){
+  h1{font-size:22px} header{padding-top:18px}
+  .bk{grid-template-columns:1fr}
+  .entry{margin:0 10px 10px}
+  .group{padding:8px 6px 1px}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+<style>
+.stats{gap:10px 30px}
+.stat.p b{color:var(--ink-3)}
+.stat.id{padding-left:26px;border-left:1px solid var(--line)}
+.stat.id b{color:var(--slate)}
+.stat small{display:block;font-size:12px;color:var(--ink-3)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--ink-3);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.gmode{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 4px 10px}
+.gmode span{font-size:13px;color:var(--ink-2)}
+.mbtn{border:1px solid var(--orange);background:var(--card);color:var(--orange);border-radius:7px;padding:5px 10px;font-size:13px;cursor:pointer;white-space:nowrap}
+.mbtn.on{background:var(--orange);color:#fff}
+.gentry{background:var(--card);border:1px solid var(--orange);border-radius:10px;margin:0 0 10px;padding:12px 14px;display:grid;grid-template-columns:1fr minmax(280px,360px);gap:10px}
+.gentry .gsum{font-size:14px;color:var(--ink-2)}
+.gentry .gsum b{color:var(--ink)}
+.gentry .entry{margin:0}
+.bk.covered{grid-template-columns:1fr}
+.bk.covered .entry{display:none}
+.cov{font-size:13px;margin-top:8px;color:var(--orange)}
+.cov.g{color:var(--field)} .cov.n{color:var(--brick)}
+.nids{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.nids select{width:auto}
+@media (max-width:720px){.gentry{grid-template-columns:1fr}.stat.id{padding-left:0;border-left:0}}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>Farmer ID status by bucket<span id="vname"></span></h1>
+  <p class="sub" id="totals"></p>
+  <div class="meta">
+    <span class="acct" id="acct"></span>
+    <span class="sync" id="sync"><i></i><span></span></span>
+    <button class="linkbtn" id="csv">Download all buckets (CSV)</button>
+    <button class="linkbtn" id="misc">Miscellaneous information</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="bigbar" id="bigbar"></div>
+  <div class="legend"><span><i style="background:var(--field)"></i>Buckets claimed</span><span><i style="background:var(--line)"></i>Buckets not claimed</span><span><i style="background:var(--orange)"></i>Check if same person in more than one bucket</span></div>
+</header>
+
+<div class="bar"><div class="wrap">
+  <div class="tools">
+    <div class="smode" role="group" aria-label="Search by">
+      <button data-m="khasra" aria-pressed="true">Khasra No.</button><button data-m="name" aria-pressed="false">Name</button>
+    </div>
+    <input class="search" id="q" type="search" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="qinfo" id="qinfo" aria-live="polite"></div>
+  <div class="chips" id="chips"></div>
+</div></div>
+
+<main class="wrap"><div id="list"></div></main>
+<footer class="wrap">Record for every bucket whether a Farmer ID has been generated. Buckets in an orange block appear to belong to one person: choose "One Farmer ID for all" to record them together, so they count as one Farmer ID. A red note means one bucket may hold more than one person. Nothing has been merged on the portal.</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="login" id="login" hidden>
+  <form class="lbox" id="lform" autocomplete="on">
+    <h2>Farmer ID status</h2>
+    <p class="lsub" id="lsub"></p>
+    <label for="lu">Username</label><input id="lu" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
+    <button class="lbtn" id="lbtn" type="submit">Log in</button>
+    <p class="lerr" id="lerr" role="alert"></p>
+    <button type="button" class="lview" id="lview">Just view – no login</button>
+  </form>
+</div>
+<dialog id="miscDlg" aria-labelledby="miscTitle"><div class="dlg">
+  <div class="dhead"><h2 id="miscTitle">Miscellaneous information</h2><button class="dclose" id="miscClose" aria-label="Close">Close</button></div>
+  <div id="miscBody"></div>
+</div></dialog>
+
+<script>
+const DATA = {"buckets":[{"id":1,"st":0,"v":[["mohammad anwar","fakir",6,["59","145","109","98","65","80"],["JK772157756998","JK501155954926","JK492487460844","JK490290823474","JK485355683686","JK772864858204"],0.029216,0,["12","10","10","10","10","12"],["37","31","31","31","31","37"]]],"e":0.029216,"k":"0K-11M-5S","r":"","g":0,"u":"fea06312-8ede-4061-9ba1-591b39330153"},{"id":2,"st":0,"v":[["abdulrahim","fakir",2,["102","66"],["JK775158695245","JK774826104987"],0.100328,0,["12","12"],["39","39"]]],"e":0.100328,"k":"1K-19M-6S","r":"","g":0,"u":"fca526c9-aa0a-411f-bb9c-d6bae5f416c1"},{"id":3,"st":0,"v":[["juma","fakir",2,["102","66"],["JK775156794624","JK774821992084"],0.100328,0,["12","12"],["39","39"]]],"e":0.100328,"k":"1K-19M-6S","r":"","g":0,"u":"f87b26dd-d791-415d-9e80-2700134878b0"},{"id":4,"st":0,"v":[["fatima","kadir",1,["127"],["JK427571277619"],0.018123,0,["5"],["20"]]],"e":0.018123,"k":"0K-7M-1S","r":"","g":0,"u":"f5c319a9-70d1-44ea-9d85-38fa138aa979"},{"id":5,"st":0,"v":[["samad","ahsan",14,["175","163","165","166","168","164","169","177","178","179","176","172","173","174"],["JK454966719591","JK432543769194","JK433471304552","JK438370335204","JK440722556229","JK444041215053","JK450744503492","JK458715274399","JK462632761382","JK463756540609","JK457260358382","JK452198062843","JK452866125486","JK453962695359"],0.868801,0,["9","9","9","9","9","9","9","9","9","9","9","9","9","9"],["30","30","30","30","30","30","30","30","30","30","30","30","30","30"]]],"e":0.868801,"k":"17K-3M-4S","r":"","g":0,"u":"f54141d8-4cb5-4ade-95fe-100a72dd12bd"},{"id":6,"st":0,"v":[["bakhtawar","juma",1,["134"],["JK299989390570"],0.042998,0,["2"],["4"]]],"e":0.042998,"k":"0K-17M-0S","r":"","g":0,"u":"f4abd0f0-dda5-4bb2-b561-bfea1a73f076"},{"id":7,"st":0,"v":[["gulam khan","matbnea",1,["78"],["JK472122970729"],0.020234,0,["11"],["36"]]],"e":0.020234,"k":"0K-8M-0S","r":"","g":0,"u":"f31917ee-1391-44c8-8185-af718371e9fa"},{"id":8,"st":0,"v":[["raja","gulzar",1,["128"],["JK757511088915"],0.001468,0,["7"],["24"]]],"e":0.001468,"k":"0K-0M-5S","r":"","g":1,"u":"eb9ce80a-0504-4108-a7a3-74ae01e9b3bc"},{"id":9,"st":0,"v":[["mali","nadir",10,["31","114","107","17","150","128","28","129","115","16"],["JK338243521675","JK348267711966","JK368049051634","JK285887646026","JK351158855295","JK757485701614","JK337066990324","JK781341531476","JK349740399178","JK336251839732"],0.148461,0,["4","4","4","1","4","7","4","13","4","4"],["9","11","13","2","11","24","9","42","11","9"]]],"e":0.148461,"k":"2K-18M-6S","r":"","g":0,"u":"ead25d5b-211e-4983-980a-ee4ff0e0fc05"},{"id":10,"st":0,"v":[["munawwar","mukhta",1,["128"],["JK757632560216"],0.002529,0,["7"],["24"]]],"e":0.002529,"k":"0K-1M-0S","r":"","g":0,"u":"e970bd4e-b753-44d8-b91b-3ccf0bb8fb5c"},{"id":11,"st":0,"v":[["mohammad yunus","gulzar",10,["22","129","128","106","29","26","15","134","117","21"],["JK292605671185","JK781367301072","JK757554401669","JK362371537126","JK360229515506","JK359074858250","JK355721453402","JK299979661829","JK293607279575","JK290896407893"],0.065175,0,["2","13","7","4","4","4","4","2","2","2"],["3","42","24","12","12","12","12","4","3","3"]]],"e":0.065175,"k":"1K-5M-7S","r":"","g":0,"u":"e68db0b4-ac9f-4b67-9d18-8c4b642f0cd9"},{"id":12,"st":0,"v":[["dilbar","habib",1,["128"],["JK757646037167"],0.002529,0,["7"],["24"]]],"e":0.002529,"k":"0K-1M-0S","r":"","g":0,"u":"e4381d97-b667-4a1a-9468-f8e863772654"},{"id":13,"st":0,"v":[["aziz","fojdar",2,["197/182","195/181"],["JK769371981854","JK768259960034"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"df6716a9-e5bb-4f91-b6ce-2c2031cf860f"},{"id":14,"st":0,"v":[["mukhti","subhan",3,["99","111","76"],["JK674088573567","JK674533024875","JK673517635544"],0.045527,0,["10","10","10"],["34","34","34"]]],"e":0.045527,"k":"0K-18M-0S","r":"","g":0,"u":"dbb4b9fe-4f0b-4350-b750-4d6d4e0d0a46"},{"id":15,"st":0,"v":[["mohammad ashraf","gulzar",10,["22","134","21","129","128","106","29","26","15","117"],["JK292594095510","JK299975574526","JK290893300396","JK781366472944","JK757552242474","JK362364593729","JK360227622965","JK359072704366","JK355715636521","JK293606585448"],0.068088,0,["2","2","2","13","7","4","4","4","4","2"],["3","4","3","42","24","12","12","12","12","3"]]],"e":0.068088,"k":"1K-6M-8S","r":"","g":0,"u":"db49603d-55ab-41cc-8f2a-b6e7f5d878bb"},{"id":16,"st":0,"v":[["hameedula","laskhar",2,["195/181","197/182"],["JK768243142955","JK769349707540"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"dac975e3-2c4c-4975-814e-8efbd6ffbc9c"},{"id":17,"st":0,"v":[["hemalle","sultan",12,["26","15","23","134","117","21","128","129","22","106","29","107"],["JK359041391925","JK355682706659","JK324599306800","JK299954743546","JK293595527411","JK290873396317","JK757544161916","JK781362418934","JK292569137840","JK362339203739","JK360207352668","JK368082721329"],0.057915,0,["4","4","2","2","2","2","7","13","2","4","4","4"],["12","12","5","4","3","3","24","42","3","12","12","13"]]],"e":0.057915,"k":"1K-2M-8S","r":"","g":0,"u":"da0e4fed-68e9-4050-bf65-e705155bc69c"},{"id":18,"st":0,"v":[["nazir ahmad","bakhtawer",17,["61","33","128","122","84","52","73","123","126","159","70","155","67","131","38","37","129"],["JK760429170167","JK752429573854","JK757596774786","JK744649687823","JK742537715590","JK688389760964","JK680616742210","JK330137345587","JK745940878549","JK748567351634","JK753514302799","JK779923124447","JK779771881283","JK779394405200","JK779275425422","JK779049826169","JK781337729537"],0.199933,0,["7","4","7","4","4","4","4","3","4","4","4","13","13","13","13","13","13"],["25","19","24","17","17","17","15","6","17","17","19","47","47","45","45","45","42"]]],"e":0.199933,"k":"3K-19M-0S","r":"","g":0,"u":"d93af641-c78a-4eba-9fdf-223fafbc2438"},{"id":19,"st":0,"v":[["hemali","mukhta",1,["128"],["JK757663925410"],0.000149,0,["7"],["24"]]],"e":0.000149,"k":"0K-0M-1S","r":"","g":0,"u":"d7a27b86-af64-4ce4-9a4a-a60c1e490e2f"},{"id":20,"st":0,"v":[["rupeni","hasan",7,["23","128","143","142","25","14","105"],["JK324662576157","JK757562352768","JK372610197412","JK372116559714","JK370532590581","JK369905417906","JK371343724541"],0.052875,0,["2","7","4","4","4","4","4"],["5","24","14","14","14","14","14"]]],"e":0.052875,"k":"1K-0M-8S","r":"","g":0,"u":"d7398508-e769-4fb4-8550-e24cf49ed07c"},{"id":21,"st":0,"v":[["amar","nadir",8,["115","16","17","107","150","114","31","28"],["JK349715672263","JK336256182129","JK285891575373","JK368052059142","JK351129173380","JK348251491279","JK338246861447","JK337070318864"],0.147325,0,["4","4","1","4","4","4","4","4"],["11","9","2","13","11","11","9","9"]]],"e":0.147325,"k":"2K-18M-2S","r":"","g":2,"u":"d5f61a4e-45a4-4f7f-978b-ea0cc336bc58"},{"id":22,"st":0,"v":[["namdar","jalil",1,["128"],["JK757482145739"],0.000316,0,["7"],["24"]]],"e":0.000316,"k":"0K-0M-1S","r":"","g":0,"u":"d377c74b-9d1f-44f9-9120-fb7ed8cbd6b0"},{"id":23,"st":0,"v":[["mukhti","laskhar",2,["195/181","197/182"],["JK768253940345","JK769362434615"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"d20c157e-2f99-44b7-9273-31317a421ec2"},{"id":24,"st":0,"v":[["ali mohammad","fakir",6,["98","145","109","80","59","65"],["JK490285989978","JK501145953891","JK492454881481","JK772863747875","JK772151832832","JK485336559588"],0.029524,0,["10","10","10","12","12","10"],["31","31","31","37","37","31"]]],"e":0.029524,"k":"0K-11M-6S","r":"","g":0,"u":"cd002b77-04fc-4e20-9c49-5e0fc0920296"},{"id":25,"st":0,"v":[["mohammad ramzan","fakir",6,["98","145","65","80","59","109"],["JK490269854641","JK501121140803","JK485318481584","JK772851116202","JK772145994073","JK492435537853"],0.029771,0,["10","10","10","12","12","10"],["31","31","31","37","37","31"]]],"e":0.029771,"k":"0K-11M-7S","r":"","g":0,"u":"cca53afd-6d52-4844-a49d-abc0c526df06"},{"id":26,"st":0,"v":[["hajra","fojdar",2,["195/181","197/182"],["JK768262628970","JK769376077385"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"ca818ce9-b6cb-48b5-9b37-405198f39a4e"},{"id":27,"st":0,"v":[["namdar","munawwar",2,["197/182","195/181"],["JK769312490752","JK768199521746"],0.058173,0,["8","8"],["28","28"]]],"e":0.058173,"k":"1K-3M-0S","r":"","g":0,"u":"c1a71d4c-c353-429a-9495-19df958ae8ae"},{"id":28,"st":0,"v":[["mst raji","qadir wani",1,["158"],["JK268152726386"],0.053115,0,["20"],["56"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"bf43aea7-fd0c-4b84-9ff3-47356f931005"},{"id":29,"st":0,"v":[["jabbar","rehma",14,["174","179","177","176","175","173","166","165","163","172","178","169","164","168"],["JK454011329415","JK463887050656","JK458756431445","JK457322754831","JK454990189930","JK452930609272","JK438402366559","JK433500332329","JK432570504294","JK452222016733","JK462678560917","JK450779772997","JK444082081144","JK440768115598"],0.173331,0,["9","9","9","9","9","9","9","9","9","9","9","9","9","9"],["30","30","30","30","30","30","30","30","30","30","30","30","30","30"]]],"e":0.173331,"k":"3K-8M-5S","r":"","g":0,"u":"b97d75a6-33bc-4594-a6f8-0915e53bae20"},{"id":30,"st":0,"v":[["noori","laskhar",2,["195/181","197/182"],["JK768257854090","JK769367297103"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"b9141f6d-c0d6-444a-8319-dd42683b39c2"},{"id":31,"st":0,"v":[["sultan","kabar",6,["96","56","112","113","87","118"],["JK776923121464","JK467592471984","JK776486979044","JK776741151809","JK775732506693","JK470162731101"],0.095477,0,["12","11","12","12","12","11"],["40","35","40","40","40","35"]]],"e":0.095477,"k":"1K-17M-7S","r":"","g":0,"u":"b7a86e99-09b1-49d6-a7ad-3b092bebd92c"},{"id":32,"st":0,"v":[["mohammad","rehma",14,["172","166","179","178","177","165","163","169","164","176","175","174","173","168"],["JK452203941819","JK438374895634","JK463783103952","JK462638502630","JK458725198404","JK433474127825","JK432548477532","JK450747399848","JK444050180592","JK457270943764","JK454970028269","JK453973466258","JK452870480362","JK440730597717"],0.172744,0,["9","9","9","9","9","9","9","9","9","9","9","9","9","9"],["30","30","30","30","30","30","30","30","30","30","30","30","30","30"]]],"e":0.172744,"k":"3K-8M-3S","r":"","g":0,"u":"b1d894a0-b4f4-4943-b49f-e6eb00a27f55"},{"id":33,"st":0,"v":[["lali","bakhtavar",4,["128","90","138","151"],["JK757690465498","JK763282057623","JK764204440255","JK271719439460"],0.032145,0,["7","7","7","17"],["24","27","27","53"]]],"e":0.032145,"k":"0K-12M-6S","r":"","g":0,"u":"b0835462-96eb-4a68-8df1-394b139944c4"},{"id":34,"st":0,"v":[["rasool","saboor",6,["65","145","80","59","109","98"],["JK485285345602","JK501114468246","JK772848167392","JK772140948977","JK492413868654","JK490250893186"],0.116974,0,["10","10","12","12","10","10"],["31","31","37","37","31","31"]]],"e":0.116974,"k":"2K-6M-2S","r":"","g":0,"u":"aef0f5b6-4d82-44ea-bc9a-58ca7f3a2e79"},{"id":35,"st":0,"v":[["dilbar","gulab",2,["195/181","197/182"],["JK768205315090","JK769316354522"],0.14164,0,["8","8"],["28","28"]]],"e":0.14164,"k":"2K-16M-0S","r":"","g":0,"u":"acd80f0d-2e5c-4481-b888-efa525f35faa"},{"id":36,"st":0,"v":[["dudi","bakhtawer",6,["37","129","155","67","131","38"],["JK779053767803","JK781341223573","JK779927612179","JK779775867424","JK779407466828","JK779280725225"],0.050925,0,["13","13","13","13","13","13"],["45","42","47","47","45","45"]]],"e":0.050925,"k":"1K-0M-1S","r":"","g":0,"u":"ac75f085-95db-44eb-adc8-5cb7c5fff897"},{"id":37,"st":0,"v":[["gulam","saboor",5,["80","65","98","109","59"],["JK772850910414","JK485293103523","JK490256820908","JK492421538733","JK772144125735"],0.087843,0,["12","10","10","10","12"],["37","31","31","31","37"]]],"e":0.087843,"k":"1K-14M-7S","r":"","g":0,"u":"aa27bd0d-3aa3-4511-99fc-b5d6584f739d"},{"id":38,"st":0,"v":[["jamil ahmad","hasan",8,["142","143","128","129","23","25","14","105"],["JK372182300234","JK372595420949","JK757572950756","JK781372532954","JK324643410335","JK370527547960","JK369884630393","JK371336325484"],0.100575,0,["4","4","7","13","2","4","4","4"],["14","14","24","42","5","14","14","14"]]],"e":0.100575,"k":"1K-19M-7S","r":"","g":0,"u":"a228a0b7-f038-4d5f-b66c-b4bb3d750850"},{"id":39,"st":0,"v":[["noori","kabar",4,["136","137","104","64"],["JK773477719566","JK774184164115","JK670573769358","JK504413752506"],0.045014,0,["12","12","10","10"],["38","38","32","32"]]],"e":0.045014,"k":"0K-17M-7S","r":"","g":0,"u":"a035e6f0-6e15-4b83-a595-fd1d6ac938ec"},{"id":40,"st":0,"v":[["khalsa sarkar","na",1,["40"],["JK116570633529"],2.314298,0,["22"],["58"]]],"e":2.314298,"k":"45K-15M-0S","r":"Parentage recorded as 'na'; Non-individual / possession entry","g":0,"u":"9f3efec2-3a28-4a89-adeb-15bea6ce74c5"},{"id":41,"st":0,"v":[["ameer","raji",1,["127"],["JK427555170535"],0.054379,0,["5"],["20"]]],"e":0.054379,"k":"1K-1M-4S","r":"","g":0,"u":"9f10163f-2b22-44f2-9187-e7cce62cb44c"},{"id":42,"st":0,"v":[["zhuri","dilbar",4,["104","64","137","136"],["JK670587728202","JK504418264856","JK774193231113","JK773490645222"],0.039974,0,["10","10","12","12"],["32","32","38","38"]]],"e":0.039974,"k":"0K-15M-7S","r":"","g":0,"u":"9b1e53ed-40d1-4163-a544-158386c8585d"},{"id":43,"st":0,"v":[["hameed","jumai",8,["25","128","14","20","129","143","142","105"],["JK370535942670","JK757523967617","JK369914061988","JK279374098638","JK781355160795","JK372613004606","JK372121606076","JK371347394122"],0.36371,0,["4","7","4","14","13","4","4","4"],["14","24","14","50","42","14","14","14"]]],"e":0.36371,"k":"7K-3M-7S","r":"","g":0,"u":"99d37a6d-1eff-4bc8-b8d7-f7c1eaac0a3a"},{"id":44,"st":0,"v":[["mohammad afazal","fakir",6,["109","59","80","65","98","145"],["JK492444188631","JK772147148947","JK772857229168","JK485326633201","JK490274782369","JK501138129291"],0.029745,0,["10","12","12","10","10","10"],["31","37","37","31","31","31"]]],"e":0.029745,"k":"0K-11M-7S","r":"","g":0,"u":"98852bf0-6f72-4da3-af56-ddfa6a994d94"},{"id":45,"st":0,"v":[["fakir","ismal",1,["53"],["JK270586756112"],0.030351,0,["18"],["54"]]],"e":0.030351,"k":"0K-12M-0S","r":"","g":0,"u":"95f158f1-625b-492f-aa8b-e103aaa7a7b7"},{"id":46,"st":0,"v":[["mohammad","shaban",10,["26","134","21","106","117","22","29","15","128","129"],["JK359016192671","JK299928017596","JK290841598050","JK362316837419","JK293576791525","JK292538563610","JK360181609431","JK355643887813","JK757518478313","JK781347026154"],0.093237,0,["4","2","2","4","2","2","4","4","7","13"],["12","4","3","12","3","3","12","12","24","42"]]],"e":0.093237,"k":"1K-16M-8S","r":"","g":0,"u":"8f402d0c-b275-4b1c-b621-29787feb610e"},{"id":47,"st":0,"v":[["nani","mukhta",1,["128"],["JK757658748774"],0.000836,0,["7"],["24"]]],"e":0.000836,"k":"0K-0M-3S","r":"","g":0,"u":"8f268d98-ed11-4bd8-81e4-7c5368d1cae7"},{"id":48,"st":0,"v":[["amir","sabir",2,["194/181","196/182"],["JK770047337239","JK770378402566"],0.435038,0,["8","8"],["29","29"]]],"e":0.435038,"k":"8K-12M-0S","r":"","g":0,"u":"8d4ccaf1-b445-4c7b-97ed-7c42df73b7ca"},{"id":49,"st":0,"v":[["dilbar","juma",1,["34"],["JK428308983411"],0.128994,0,["6"],["21"]]],"e":0.128994,"k":"2K-11M-0S","r":"","g":0,"u":"8cfcfdfe-fbbb-4010-9335-a16f5c21282d"},{"id":50,"st":0,"v":[["saja","bakhtawer",17,["126","159","131","122","33","128","70","61","129","52","73","123","37","38","84","67","155"],["JK745955496628","JK748582522940","JK779400940463","JK744703347132","JK752447385432","JK757606329225","JK753533219474","JK760434070959","JK781339532784","JK688472684143","JK680632742132","JK330161522994","JK779053133384","JK779278532462","JK742553843396","JK779773684804","JK779924196500"],0.15661,0,["4","4","13","4","4","7","4","7","13","4","4","3","13","13","4","13","13"],["17","17","45","17","19","24","19","25","42","17","15","6","45","45","17","47","47"]]],"e":0.15661,"k":"3K-1M-8S","r":"","g":0,"u":"89da2c81-c0d6-40d2-8829-d89a72e3b02c"},{"id":51,"st":0,"v":[["hanifa","laskhar",2,["197/182","195/181"],["JK769353541530","JK768249045884"],0.03541,0,["8","8"],["28","28"]]],"e":0.03541,"k":"0K-14M-0S","r":"","g":0,"u":"89396c67-19e0-484f-af06-69d09e6c7700"},{"id":52,"st":0,"v":[["jamila","sultan",12,["117","107","29","128","129","106","22","134","26","15","23","21"],["JK293599089621","JK368091750441","JK360215644111","JK757548649930","JK781365771022","JK362350888938","JK292577117795","JK299964127113","JK359056704996","JK355700913285","JK324611629570","JK290882968936"],0.056118,0,["2","4","4","7","13","4","2","2","4","4","2","2"],["3","13","12","24","42","12","3","4","12","12","5","3"]]],"e":0.056118,"k":"1K-2M-2S","r":"","g":0,"u":"881ea810-02f3-4406-bda7-3668bde27692"},{"id":53,"st":0,"v":[["noorani","sultan",12,["128","129","106","29","107","26","15","134","117","22","23","21"],["JK757528700483","JK781356287334","JK362324301832","JK360192743011","JK368063431598","JK359021256423","JK355658708892","JK299943021798","JK293585881711","JK292553465837","JK324591750524","JK290860571468"],0.058008,0,["7","13","4","4","4","4","4","2","2","2","2","2"],["24","42","12","12","13","12","12","4","3","3","5","3"]]],"e":0.058008,"k":"1K-2M-8S","r":"","g":0,"u":"86b4c712-571e-4bb8-868c-9a51234bc572"},{"id":54,"st":0,"v":[["aziz","rehma",14,["174","175","176","172","166","163","165","168","164","169","177","178","179","173"],["JK453996513896","JK454983226716","JK457307740667","JK452212952984","JK438387153933","JK432560364411","JK433489205322","JK440745720886","JK444065018368","JK450759358374","JK458737590801","JK462661176446","JK463818654282","JK452904321576"],0.17324,0,["9","9","9","9","9","9","9","9","9","9","9","9","9","9"],["30","30","30","30","30","30","30","30","30","30","30","30","30","30"]]],"e":0.17324,"k":"3K-8M-4S","r":"","g":0,"u":"85e3ae44-9ba5-47f3-bec0-7850643de894"},{"id":55,"st":0,"v":[["duri","bakhtawer",11,["126","159","123","73","52","84","122","33","70","128","61"],["JK745958161508","JK748590388563","JK330175027332","JK680640969790","JK688503927768","JK742570685845","JK744724597649","JK752453755297","JK753538097875","JK757616026954","JK760440488752"],0.10573,0,["4","4","3","4","4","4","4","4","4","7","7"],["17","17","6","15","17","17","17","19","19","24","25"]]],"e":0.10573,"k":"2K-1M-7S","r":"","g":0,"u":"85981b1c-b805-470f-b79d-01ad57b19fb1"},{"id":56,"st":0,"v":[["lali","matbnea",1,["78"],["JK472121901624"],0.010117,0,["11"],["36"]]],"e":0.010117,"k":"0K-4M-0S","r":"","g":0,"u":"84238a27-07c2-48d6-ae0f-4eca71a67c5b"},{"id":57,"st":0,"v":[["sharifa","bakhtawer",17,["123","67","52","38","37","129","61","128","159","70","33","122","84","131","126","155","73"],["JK330167975451","JK779774874410","JK688493233991","JK779278815629","JK779053606178","JK781340416884","JK760437279006","JK757609691046","JK748585982420","JK753535177980","JK752449679168","JK744716084234","JK742559470500","JK779405134885","JK745957691517","JK779926636347","JK680636095714"],0.157828,0,["3","13","4","13","13","13","7","7","4","4","4","4","4","13","4","13","4"],["6","47","17","45","45","42","25","24","17","19","19","17","17","45","17","47","15"]]],"e":0.157828,"k":"3K-2M-4S","r":"","g":0,"u":"81333bde-9be2-4643-9c75-1c9f633ad26e"},{"id":58,"st":0,"v":[["sarwar","gulab",2,["197/182","195/181"],["JK769309374054","JK768197988502"],0.113818,0,["8","8"],["28","28"]]],"e":0.113818,"k":"2K-5M-0S","r":"","g":0,"u":"7f715e64-21cc-47c3-91ff-25bab5da1fc8"},{"id":59,"st":0,"v":[["rasool","qadir",2,["102","66"],["JK775154277257","JK774820907647"],0.100328,0,["12","12"],["39","39"]]],"e":0.100328,"k":"1K-19M-6S","r":"","g":0,"u":"7dd6bfc1-b33c-441a-a3d9-7ab13d7921a9"},{"id":60,"st":1,"v":[["gulab","rajii",3,["121","3","128"],["JK332614876276","JK749607710634","JK757620749193"],0.036253,0,["3","4","7"],["7","18","24"]],["gulab","raji",2,["33","70"],["JK752462578262","JK753541114362"],0.012646,1,["4","4"],["19","19"]]],"e":0.048899,"k":"0K-19M-3S","r":"","g":0,"u":"7c8ccd4a-a549-469b-8daa-fc6029d5b0f9"},{"id":61,"st":0,"v":[["munawwar","habib",1,["128"],["JK757641320459"],0.002529,0,["7"],["24"]]],"e":0.002529,"k":"0K-1M-0S","r":"","g":0,"u":"7b893775-b1d2-4157-a05c-6e45c92c7466"},{"id":62,"st":0,"v":[["hajira","gulzar",9,["149","115","150","128","129","154","48","135","114"],["JK345881413735","JK349764629003","JK351180289527","JK757517359747","JK781331695865","JK778743432517","JK343190948201","JK344286952243","JK348284867811"],0.197916,0,["4","4","4","7","13","13","4","4","4"],["10","11","11","24","42","44","10","10","11"]]],"e":0.197916,"k":"3K-18M-2S","r":"","g":0,"u":"780ef5a8-8465-450d-a4c7-3abc4194b79c"},{"id":63,"st":0,"v":[["farzani","kabar",4,["104","137","136","64"],["JK670578971588","JK774189797132","JK773481164266","JK504414737696"],0.045033,0,["10","12","12","10"],["32","38","38","32"]]],"e":0.045033,"k":"0K-17M-7S","r":"","g":0,"u":"740a9313-0581-487d-a6ac-1beddf247652"},{"id":64,"st":0,"v":[["sara","hasan",8,["25","142","105","23","14","128","129","143"],["JK370531387734","JK372115480397","JK371342288402","JK324658192110","JK369899539650","JK757583378183","JK781375033432","JK372606957800"],0.060875,0,["4","4","4","2","4","7","13","4"],["14","14","14","5","14","24","42","14"]]],"e":0.060875,"k":"1K-4M-1S","r":"","g":0,"u":"7319cc79-bcc3-4a40-b571-7956d31c0aeb"},{"id":65,"st":0,"v":[["gulshan bano","gulzar",10,["117","129","128","106","29","26","15","134","22","21"],["JK293609065387","JK781368148924","JK757557748788","JK362376246880","JK360240163518","JK359078780062","JK355726177939","JK299982881372","JK292608856765","JK290898054198"],0.043868,0,["2","13","7","4","4","4","4","2","2","2"],["3","42","24","12","12","12","12","4","3","3"]]],"e":0.043868,"k":"0K-17M-3S","r":"1 plot(s) with zero extent","g":0,"u":"730201f2-1519-46e7-a4a1-e8231026f34b"},{"id":66,"st":0,"v":[["rupani","gulzar",1,["128"],["JK757500994605"],0.001468,0,["7"],["24"]]],"e":0.001468,"k":"0K-0M-5S","r":"","g":0,"u":"724e079b-ab57-4c3e-b5be-82230d5a23a5"},{"id":67,"st":0,"v":[["hasan","jumai",1,["20"],["JK279369535149"],0.049322,0,["14"],["50"]]],"e":0.049322,"k":"0K-19M-5S","r":"","g":0,"u":"6ea4f561-74e5-4c08-ae22-57a00fd3e549"},{"id":68,"st":0,"v":[["zaitooni","dilawar",2,["197/182","195/181"],["JK769314529695","JK768202193937"],0.058173,0,["8","8"],["28","28"]]],"e":0.058173,"k":"1K-3M-0S","r":"","g":0,"u":"6c6b296e-b1be-4553-8763-0049df0b1d67"},{"id":69,"st":0,"v":[["taja","dilawar",2,["197/182","195/181"],["JK769315989165","JK768204464955"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"6a72b145-5431-442a-99d3-f0db66668228"},{"id":70,"st":0,"v":[["sultan","dayim",2,["110","63"],["JK672323116813","JK671982182799"],0.02782,0,["10","10"],["33","33"]]],"e":0.02782,"k":"0K-11M-0S","r":"","g":0,"u":"6787e786-fc87-4491-a54b-019ce5141c94"},{"id":71,"st":0,"v":[["bakhtawer","rehman",2,["12","11"],["JK278038019832","JK277497424995"],0.160611,0,["15","15"],["51","51"]]],"e":0.160611,"k":"3K-3M-5S","r":"","g":0,"u":"677aeb33-ff7d-4f2d-ac3e-865470c7c13d"},{"id":72,"st":0,"v":[["ali mahamad","dilawar",2,["197/182","195/181"],["JK769335580945","JK768222571353"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"64aa6ad3-b1ab-4897-8fa5-98d5606a4850"},{"id":73,"st":0,"v":[["saja","shaban",10,["29","106","21","134","117","15","26","128","129","22"],["JK360189596449","JK362320080749","JK290854879023","JK299937028189","JK293581093311","JK355646806163","JK359018776774","JK757521281910","JK781354310104","JK292549009292"],0.080209,0,["4","4","2","2","2","4","4","7","13","2"],["12","12","3","4","3","12","12","24","42","3"]]],"e":0.080209,"k":"1K-11M-6S","r":"","g":0,"u":"644741e4-53c9-47a5-bf49-cce4d74eff71"},{"id":74,"st":0,"v":[["mushtaq ahmad","gulam",1,["145"],["JK501164733251"],0.03541,0,["10"],["31"]]],"e":0.03541,"k":"0K-14M-0S","r":"","g":0,"u":"62f6b168-889d-4353-a8a0-7356f57da756"},{"id":75,"st":0,"v":[["anwar","kabar",4,["104","64","137","136"],["JK670572716481","JK504413340208","JK774179634085","JK773474939623"],0.044995,0,["10","10","12","12"],["32","32","38","38"]]],"e":0.044995,"k":"0K-17M-7S","r":"","g":0,"u":"5dfe9e8f-28e5-49d7-9030-de6507af8830"},{"id":76,"st":1,"v":[["nuranai","gulzar",8,["149","114","150","135","48","115","129","154"],["JK345868342480","JK348271387251","JK351168866107","JK344274047652","JK343176054825","JK349745682638","JK781331275053","JK778741702213"],0.198968,0,["4","4","4","4","4","4","13","13"],["10","11","11","10","10","11","42","44"]],["nurani","gulzar",1,["128"],["JK757506116527"],0.001468,1,["7"],["24"]]],"e":0.200436,"k":"3K-19M-2S","r":"","g":0,"u":"5df20309-2acb-4ed4-9cb0-12fa1a4565d5"},{"id":77,"st":0,"v":[["abdul gani","bakhtavar",4,["151","138","128","90"],["JK271707146418","JK764181683815","JK757665323304","JK763267020934"],0.037305,0,["17","7","7","7"],["53","27","24","27"]]],"e":0.037305,"k":"0K-14M-7S","r":"","g":0,"u":"5d297d66-3a89-43f8-a62c-eb8a17f12bcd"},{"id":78,"st":0,"v":[["abadi deh","na",2,["124","116"],["JK265618579180","JK265060878830"],0.139111,0,["21","21"],["57","57"]]],"e":0.139111,"k":"2K-15M-0S","r":"Parentage recorded as 'na'","g":0,"u":"5c5ba551-ccc0-487c-9365-4dec6ed5dbbf"},{"id":79,"st":0,"v":[["sabir","rajii",3,["3","128","121"],["JK749607205453","JK757619537319","JK332613578687"],0.036253,0,["4","7","3"],["18","24","7"]]],"e":0.036253,"k":"0K-14M-3S","r":"","g":0,"u":"56b64955-60c9-48fc-99c4-a294a76bd126"},{"id":80,"st":0,"v":[["raja","gulza",2,["154","129"],["JK778744205004","JK781333168896"],0.0645,0,["13","13"],["44","42"]]],"e":0.0645,"k":"1K-5M-5S","r":"","g":1,"u":"56134d2e-a8c5-4801-ae1f-5f0f8607bc8f"},{"id":81,"st":0,"v":[["gulab","jumma",4,["90","128","151","138"],["JK763268539970","JK757669538157","JK271708494228","JK764190711644"],0.170725,0,["7","7","17","7"],["27","24","53","27"]]],"e":0.170725,"k":"3K-7M-4S","r":"","g":0,"u":"53b10bf6-5178-443d-bc95-3c1acbefc665"},{"id":82,"st":0,"v":[["mohammad munawar","qaim",1,["10"],["JK327870040103"],0.037939,0,["3"],["6"]]],"e":0.037939,"k":"0K-15M-0S","r":"","g":0,"u":"52e1d643-5fc0-4314-9bdc-648ad5974bcf"},{"id":83,"st":0,"v":[["raju","laskhar",2,["197/182","195/181"],["JK769351609710","JK768246738050"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"50a20af5-3c45-49af-8428-10cdc9bd11c3"},{"id":84,"st":0,"v":[["jumai","lasoo",1,["139"],["JK430260368400"],0.07082,0,["6"],["23"]]],"e":0.07082,"k":"1K-8M-0S","r":"","g":0,"u":"4ed8aad5-3041-4c69-9b64-22d4f7b0d523"},{"id":85,"st":0,"v":[["nabir","nadir",2,["128","129"],["JK757488280965","JK781344342134"],0.003662,0,["7","13"],["24","42"]]],"e":0.003662,"k":"0K-1M-4S","r":"","g":3,"u":"45941fc4-cb91-4f95-99e3-aa7a390fe4ce"},{"id":86,"st":0,"v":[["lali","munawar",1,["93"],["JK273292088763"],0.013281,0,["16"],["52"]]],"e":0.013281,"k":"0K-5M-2S","r":"","g":0,"u":"43f3e34d-7b42-4b68-9b49-b9470f0d2cab"},{"id":87,"st":0,"v":[["nazir ahmad","dilawar",2,["195/181","197/182"],["JK768235069794","JK769344510597"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"43c483b4-fc61-445a-9f57-8164c32ea758"},{"id":88,"st":0,"v":[["jume","habib",1,["128"],["JK757653775625"],0.002529,0,["7"],["24"]]],"e":0.002529,"k":"0K-1M-0S","r":"","g":0,"u":"418bc529-396e-4c5f-8a0c-5d97dbcb4266"},{"id":89,"st":0,"v":[["ameer","kabar",6,["87","56","118","113","96","112"],["JK775729696572","JK467581667293","JK470154705435","JK776739361583","JK776922526457","JK776486394475"],0.095478,0,["12","11","11","12","12","12"],["40","35","35","40","40","40"]]],"e":0.095478,"k":"1K-17M-7S","r":"","g":0,"u":"4129c688-d7f9-4087-98f4-2b1240901aca"},{"id":90,"st":0,"v":[["bakhti","subhan",3,["99","76","111"],["JK674082237931","JK673514750142","JK674516102789"],0.050585,0,["10","10","10"],["34","34","34"]]],"e":0.050585,"k":"1K-0M-0S","r":"","g":0,"u":"3fa4f5e6-60ce-452d-a6d8-03f5107de71b"},{"id":91,"st":0,"v":[["zooni","shaban",6,["117","22","128","134","21","129"],["JK293580302092","JK292543390025","JK757520440998","JK299930054326","JK290849114664","JK781350702154"],0.025416,0,["2","2","7","2","2","13"],["3","3","24","4","3","42"]]],"e":0.025416,"k":"0K-10M-0S","r":"","g":0,"u":"3dcddc2e-d031-45b3-97c3-aae9a701a8ad"},{"id":92,"st":1,"v":[["gulam hasan","bakhtavar",3,["138","90","128"],["JK764199320964","JK763271864143","JK757677696105"],0.025293,0,["7","7","7"],["27","27","24"]],["ghulam hasan","bakhtavar",1,["151"],["JK271710753957"],0.012012,1,["17"],["53"]]],"e":0.037305,"k":"0K-14M-7S","r":"","g":0,"u":"3d0b7076-e237-4cde-8c28-b33e95ea7e95"},{"id":93,"st":0,"v":[["abdullah","kabar",6,["113","96","56","118","87","112"],["JK776743898016","JK776932698245","JK467608288921","JK470182167744","JK775740636496","JK776489049813"],0.095486,0,["12","12","11","11","12","12"],["40","40","35","35","40","40"]]],"e":0.095486,"k":"1K-17M-7S","r":"","g":0,"u":"3c67a050-dfcc-49ec-b065-26ddf67ddd6a"},{"id":94,"st":0,"v":[["nawaz","dilawar",2,["195/181","197/182"],["JK768216268745","JK769325051834"],0.040469,0,["8","8"],["28","28"]]],"e":0.040469,"k":"0K-16M-0S","r":"","g":0,"u":"386e8fe2-6a05-46a8-b326-99c51c7ffc88"},{"id":95,"st":0,"v":[["majeed ahmad","hasan",8,["129","23","14","25","105","142","143","128"],["JK781374002865","JK324655180228","JK369890466757","JK370529432240","JK371340755505","JK372185959481","JK372602238412","JK757574260389"],0.100575,0,["13","2","4","4","4","4","4","7"],["42","5","14","14","14","14","14","24"]]],"e":0.100575,"k":"1K-19M-7S","r":"","g":0,"u":"36f5fd55-6e11-4329-aec6-71cbaed96795"},{"id":96,"st":0,"v":[["gulzar","dilawar",2,["195/181","197/182"],["JK768215787772","JK769323156468"],0.040469,0,["8","8"],["28","28"]]],"e":0.040469,"k":"0K-16M-0S","r":"","g":0,"u":"362ea03e-2099-4de4-b189-4da0668f862d"},{"id":97,"st":0,"v":[["abdulrashid","dilawar",2,["197/182","195/181"],["JK769339794235","JK768231868107"],0.053115,0,["8","8"],["28","28"]]],"e":0.053115,"k":"1K-1M-0S","r":"","g":0,"u":"345fae7e-ed34-430f-94a5-04603509db1b"},{"id":98,"st":0,"v":[["raheem","dayim",2,["63","110"],["JK671968529573","JK672318706177"],0.027825,0,["10","10"],["33","33"]]],"e":0.027825,"k":"0K-11M-0S","r":"","g":0,"u":"3312d266-d70f-4af3-b9af-70cb67b9efc8"},{"id":99,"st":0,"v":[["mohammad munawar","fakir",6,["109","145","65","80","59","98"],["JK492499024862","JK501160363666","JK485378342816","JK772866632144","JK772158232060","JK490302334207"],0.028498,0,["10","10","10","12","12","10"],["31","31","31","37","37","31"]]],"e":0.028498,"k":"0K-11M-2S","r":"","g":0,"u":"328bc5e2-00f7-42b1-acd3-4987536abda0"},{"id":100,"st":0,"v":[["gulzarahmad","shaban",1,["51"],["JK429391967756"],0.091054,0,["6"],["22"]]],"e":0.091054,"k":"1K-16M-0S","r":"","g":0,"u":"3286a02f-7347-49c4-961d-401eef5fda19"},{"id":101,"st":0,"v":[["rasool","rehma",14,["172","164","163","169","178","173","174","175","176","177","179","165","166","168"],["JK452209418330","JK444060618947","JK432554569013","JK450751616314","JK462649922195","JK452895119934","JK453986976819","JK454975548332","JK457291588922","JK458732199236","JK463807380783","JK433481121027","JK438381855352","JK440737207199"],0.173705,0,["9","9","9","9","9","9","9","9","9","9","9","9","9","9"],["30","30","30","30","30","30","30","30","30","30","30","30","30","30"]]],"e":0.173705,"k":"3K-8M-6S","r":"","g":0,"u":"2eda9371-fd3e-4284-bbcc-7bb3879a9f4c"},{"id":102,"st":0,"v":[["amir","nadir",2,["129","128"],["JK781343088559","JK757487046074"],0.003662,0,["13","7"],["42","24"]]],"e":0.003662,"k":"0K-1M-4S","r":"","g":2,"u":"2d53cc78-bbbd-4fb1-bf80-57c4fb197332"},{"id":103,"st":0,"v":[["zooni","gulzar",20,["135","149","114","23","48","129","21","115","150","15","26","107","29","106","128","128","154","22","134","117"],["JK344280613239","JK345873829659","JK348277480211","JK324625151104","JK343189168790","JK781331392157","JK290883174001","JK349752830135","JK351176181771","JK355707740135","JK359065893625","JK368094489566","JK360220291646","JK362355768460","JK757509521776","JK757550120820","JK778742266867","JK292583721067","JK299970531208","JK293601763139"],0.269748,0,["4","4","4","2","4","13","2","4","4","4","4","4","4","4","7","7","13","2","2","2"],["10","10","11","5","10","42","3","11","11","12","12","13","12","12","24","24","44","3","4","3"]]],"e":0.269748,"k":"5K-6M-6S","r":"","g":0,"u":"2bd5e97f-1b3f-4b8b-8d26-6ad978167b42"},{"id":104,"st":3,"v":[["gulam nabi","dilbar",13,["159","70","126","130","84","123","10","128","33","61","52","122","73"],["JK748554506279","JK753477929095","JK745929117183","JK779669157772","JK742512065182","JK330116974277","JK327867507104","JK757587648990","JK752393148494","JK760419167833","JK688330736898","JK744634152866","JK680585369171"],0.20372,0,["4","4","4","13","4","3","3","7","4","7","4","4","4"],["17","19","17","46","17","6","6","24","19","25","17","17","15"]],["ghulam","dilbar",2,["12","11"],["JK278041598857","JK277504550295"],0.160608,3,["15","15"],["51","51"]],["gh nabi","dilbar",2,["155","67"],["JK779928474318","JK779776451072"],0.020232,1,["13","13"],["47","47"]]],"e":0.38456,"k":"7K-12M-0S","r":"","g":0,"u":"2b176caf-1b99-4a0c-a12f-c1c82b7cf925"},{"id":105,"st":0,"v":[["abdul aziz","bakhtawer",17,["37","159","126","155","67","131","38","129","61","70","128","33","122","84","52","73","123"],["JK779040577494","JK748558357655","JK745929862413","JK779921709147","JK779769998512","JK779391524397","JK779274468680","JK781335862786","JK760422375416","JK753485835534","JK757591390556","JK752398281905","JK744640099029","JK742518942990","JK688363613028","JK680601594382","JK330125051217"],0.201105,0,["13","4","4","13","13","13","13","13","7","4","7","4","4","4","4","4","3"],["45","17","17","47","47","45","45","42","25","19","24","19","17","17","17","15","6"]]],"e":0.201105,"k":"3K-19M-5S","r":"","g":0,"u":"2839a23e-5a12-47ae-9e11-ba5e197f5984"},{"id":106,"st":1,"v":[["juma","gafur",7,["129","128","119","150","114","115","92"],["JK781330003404","JK757483752347","JK334666984862","JK351125132952","JK348237801338","JK349708953965","JK778461916716"],0.347276,0,["13","7","4","4","4","4","13"],["42","24","8","11","11","11","43"]],["juma","gafoor",1,["74"],["JK280362682020"],0.040469,1,["1"],["1"]]],"e":0.387745,"k":"7K-13M-3S","r":"","g":0,"u":"2646b68d-f1df-4960-8bd5-4f8677379818"},{"id":107,"st":0,"v":[["munawar wa kabir","sabir",1,["153"],["JK780237975965"],0.101172,0,["13"],["49"]]],"e":0.101172,"k":"2K-0M-0S","r":"","g":0,"u":"25b05388-e5dc-469a-9958-bafa7c6911dd"},{"id":108,"st":0,"v":[["arsha","bakhtawer",17,["128","129","126","155","67","131","38","37","159","61","70","33","123","73","52","84","122"],["JK757601157076","JK781338151994","JK745943528715","JK779923879987","JK779773493794","JK779398269140","JK779276594977","JK779050510210","JK748569374615","JK760431080050","JK753523870714","JK752438947276","JK330148624065","JK680622128899","JK688406019198","JK742542176116","JK744663383633"],0.156118,0,["7","13","4","13","13","13","13","13","4","7","4","4","3","4","4","4","4"],["24","42","17","47","47","45","45","45","17","25","19","19","6","15","17","17","17"]]],"e":0.156118,"k":"3K-1M-7S","r":"","g":0,"u":"25ad42bf-f652-4ab7-b4b2-7212abce362a"},{"id":109,"st":0,"v":[["manzoor ahmad","hasan",8,["129","142","143","105","128","25","14","23"],["JK781368587184","JK372181872026","JK372590755345","JK371334510542","JK757569185686","JK370526148999","JK369875103281","JK324639303081"],0.100153,0,["13","4","4","4","7","4","4","2"],["42","14","14","14","24","14","14","5"]]],"e":0.100153,"k":"1K-19M-5S","r":"","g":0,"u":"252af431-9f19-4b66-bb05-811e5d65ce01"},{"id":110,"st":0,"v":[["bakhti","kadir",1,["127"],["JK427583502838"],0.018135,0,["5"],["20"]]],"e":0.018135,"k":"0K-7M-2S","r":"","g":0,"u":"229da220-3a66-4684-bacf-3e34a7009ec9"},{"id":111,"st":0,"v":[["gulam khan","munawar",1,["93"],["JK273291339733"],0.030983,0,["16"],["52"]]],"e":0.030983,"k":"0K-12M-2S","r":"","g":0,"u":"21e73666-2502-45fb-b98e-f73cf1cfee51"},{"id":112,"st":0,"v":[["bakhtawer","gafur",2,["195/181","197/182"],["JK768212286344","JK769317533455"],0.14164,0,["8","8"],["28","28"]]],"e":0.14164,"k":"2K-16M-0S","r":"","g":0,"u":"21d1b2e8-4b4a-4c32-a334-35d712d4841e"},{"id":113,"st":0,"v":[["fakir","nadir",1,["97"],["JK269655322511"],0.089789,0,["19"],["55"]]],"e":0.089789,"k":"1K-15M-4S","r":"","g":0,"u":"1d1e2192-0910-4802-95c4-40b381e9c1e9"},{"id":114,"st":0,"v":[["nabar","nadir",8,["115","17","28","16","31","114","107","150"],["JK349718556861","JK285892029842","JK337074402111","JK336258596455","JK338254364138","JK348255556235","JK368054936433","JK351134495014"],0.144796,0,["4","1","4","4","4","4","4","4"],["11","2","9","9","9","11","13","11"]]],"e":0.144796,"k":"2K-17M-2S","r":"","g":3,"u":"1c851861-8a04-44cd-86a7-5d4831b77259"},{"id":115,"st":0,"v":[["saboor","rehma",14,["165","168","164","169","177","178","179","173","174","175","176","172","163","166"],["JK433493623479","JK440757323073","JK444074159016","JK450768847994","JK458744529249","JK462669819486","JK463856497985","JK452923915000","JK454002505932","JK454986120787","JK457314221648","JK452219495547","JK432565821433","JK438397324434"],0.173274,0,["9","9","9","9","9","9","9","9","9","9","9","9","9","9"],["30","30","30","30","30","30","30","30","30","30","30","30","30","30"]]],"e":0.173274,"k":"3K-8M-5S","r":"","g":0,"u":"1b3ab053-4bf2-4ddd-bb83-9145d9817ba8"},{"id":116,"st":0,"v":[["jamshed ahmad","bakhtavar",4,["128","138","90","151"],["JK757682082550","JK764201565390","JK763274029420","JK271714161708"],0.038703,0,["7","7","7","17"],["24","27","27","53"]]],"e":0.038703,"k":"0K-15M-3S","r":"","g":0,"u":"1a4725f2-35f9-4039-9f44-8d3220805871"},{"id":117,"st":0,"v":[["juma","sultan",12,["15","26","107","29","106","128","129","22","21","117","134","23"],["JK355674561522","JK359030916641","JK368073905134","JK360204150931","JK362332394516","JK757538695185","JK781361916922","JK292562789100","JK290868481344","JK293593381606","JK299950352675","JK324595731693"],0.074751,0,["4","4","4","4","4","7","13","2","2","2","2","2"],["12","12","13","12","12","24","42","3","3","3","4","5"]]],"e":0.074751,"k":"1K-9M-5S","r":"","g":0,"u":"1a256264-a75a-43a4-bc7b-812ca238264f"},{"id":118,"st":0,"v":[["hajra","kadir",1,["127"],["JK427562277536"],0.018123,0,["5"],["20"]]],"e":0.018123,"k":"0K-7M-1S","r":"","g":0,"u":"18ddf552-5966-457e-becc-be4ec493f9d7"},{"id":119,"st":1,"v":[["honiifa","sultan",10,["134","106","29","107","22","21","26","117","23","15"],["JK299960647392","JK362346168426","JK360212938142","JK368083943882","JK292574977189","JK290879151705","JK359052866650","JK293595697482","JK324605132977","JK355689477864"],0.052671,0,["2","4","4","4","2","2","4","2","2","4"],["4","12","12","13","3","3","12","3","5","12"]],["haniifa","sultan",2,["128","129"],["JK757547381269","JK781363181282"],0.002715,1,["7","13"],["24","42"]]],"e":0.055386,"k":"1K-1M-8S","r":"","g":0,"u":"186af452-0796-4a38-8c96-589256648539"},{"id":120,"st":0,"v":[["ramzan","kabar",6,["96","87","56","112","118","113"],["JK776927082643","JK775733744194","JK467599680892","JK776488155765","JK470170594252","JK776742300616"],0.095481,0,["12","12","11","12","11","12"],["40","40","35","40","35","40"]]],"e":0.095481,"k":"1K-17M-7S","r":"","g":0,"u":"1638f229-2f82-4394-b9d3-62aa75ae6951"},{"id":121,"st":1,"v":[["mohammad aslam","munawar",1,["93"],["JK273287144289"],0.061966,0,["16"],["52"]],["mohammad aslam","munawwar",1,["78"],["JK472128921103"],0.040469,1,["11"],["36"]]],"e":0.102435,"k":"2K-0M-4S","r":"","g":0,"u":"0ffed6ef-955d-420e-916f-85b7b036af9d"},{"id":122,"st":0,"v":[["raja","bakhtavar",4,["128","90","138","151"],["JK757687155358","JK763277618560","JK764203006303","JK271718964441"],0.033423,0,["7","7","7","17"],["24","27","27","53"]]],"e":0.033423,"k":"0K-13M-2S","r":"","g":0,"u":"0fb16cb6-7eec-402e-b57a-b6523aa8d5f7"},{"id":123,"st":0,"v":[["zeba","subhan",3,["99","111","76"],["JK674093001125","JK674534394941","JK673524225752"],0.045527,0,["10","10","10"],["34","34","34"]]],"e":0.045527,"k":"0K-18M-0S","r":"","g":0,"u":"0fa1022d-1235-4a11-8c9f-a3b1ed074f77"},{"id":124,"st":3,"v":[["mohammad munawar","dilbar",7,["136","64","144","104","141","137","86"],["JK773486365466","JK504415922396","JK777520255807","JK670582985070","JK777439719102","JK774192225346","JK777258566709"],0.211965,0,["12","10","12","10","12","12","12"],["38","32","41","32","41","38","41"]],["mohammad munawwar","dilawar",2,["197/182","195/181"],["JK769329872697","JK768219094926"],0.040469,3,["8","8"],["28","28"]]],"e":0.252434,"k":"4K-19M-7S","r":"","g":0,"u":"0fa00876-1018-4305-869f-15330afd3da8"},{"id":125,"st":2,"v":[["gulam rasool","nadir",9,["31","128","150","16","28","17","115","114","107"],["JK338258689496","JK757493415649","JK351147259871","JK336260967562","JK337075852171","JK285896187511","JK349730206052","JK348262800682","JK368059360193"],0.148469,0,["4","7","4","4","4","1","4","4","4"],["9","24","11","9","9","2","11","11","13"]],["rasool","nadir",1,["97"],["JK269661700354"],0.089791,2,["19"],["55"]],["ghulam rasool","nadir",1,["129"],["JK781346800884"],0.002529,1,["13"],["42"]]],"e":0.240789,"k":"4K-15M-2S","r":"","g":0,"u":"0f48940c-c465-4047-beb6-75692bc588c8"},{"id":126,"st":0,"v":[["fakir","asmal",3,["129","27","132"],["JK781375126724","JK780041869144","JK780072100885"],0.204872,0,["13","13","13"],["42","48","48"]]],"e":0.204872,"k":"4K-1M-0S","r":"","g":0,"u":"0dac7d51-88e9-478d-a565-db38b2fd9287"},{"id":127,"st":1,"v":[["gulam mohammad","sultan",11,["22","15","26","107","29","106","21","23","128","117","134"],["JK292561793998","JK355670017671","JK359025793355","JK368065161489","JK360198425396","JK362329275816","JK290863080796","JK324593033613","JK757534705884","JK293592587846","JK299945636482"],0.072222,0,["2","4","4","4","4","4","2","2","7","2","2"],["3","12","12","13","12","12","3","5","24","3","4"]],["ghulam mohammad","sultan",1,["129"],["JK781359442049"],0.002529,1,["13"],["42"]]],"e":0.074751,"k":"1K-9M-5S","r":"","g":0,"u":"0922b39b-1ad4-42fe-9b01-2b70ef755d8f"},{"id":128,"st":0,"v":[["zooni","bakhtawer",17,["155","128","131","67","37","159","61","129","126","123","73","52","84","122","33","70","38"],["JK779923920374","JK757604282395","JK779399603635","JK779773567995","JK779053121695","JK748573593985","JK760432896729","JK781339109722","JK745950298848","JK330152557804","JK680629274582","JK688466099831","JK742546220320","JK744670958276","JK752444538359","JK753530037308","JK779277475493"],0.156193,0,["13","7","13","13","13","4","7","13","4","3","4","4","4","4","4","4","13"],["47","24","45","47","45","17","25","42","17","6","15","17","17","17","19","19","45"]]],"e":0.156193,"k":"3K-1M-7S","r":"","g":0,"u":"089f65d8-dc8e-4e44-a620-c267ec952379"},{"id":129,"st":0,"v":[["taja","subhan",3,["111","99","76"],["JK674560916967","JK674096983475","JK673530373045"],0.040469,0,["10","10","10"],["34","34","34"]]],"e":0.040469,"k":"0K-16M-0S","r":"","g":0,"u":"03c3f53a-41f9-4545-b40c-5a9fa1d9a7bb"},{"id":130,"st":1,"v":[["gulam","raji",8,["159","62","79","52","84","122","140","126"],["JK748593549409","JK683852261202","JK684833153750","JK688509902308","JK742583594696","JK744735568827","JK761013492378","JK745963978833"],0.453832,0,["4","4","4","4","4","4","7","4"],["17","16","16","17","17","17","26","17"]],["gulam","rajii",3,["3","128","121"],["JK749611731114","JK757625534345","JK332628557675"],0.036253,1,["4","7","3"],["18","24","7"]]],"e":0.490085,"k":"9K-13M-7S","r":"","g":0,"u":"01c3bc3d-e59d-4ee8-8303-b73b1b56c8a3"},{"id":131,"st":1,"v":[["mohammad shafih","bakhtawer",10,["159","126","123","61","70","33","122","84","52","73"],["JK748560909384","JK745934327777","JK330131814171","JK760425615715","JK753507477443","JK752416243370","JK744643158177","JK742530022858","JK688372165670","JK680607310175"],0.122609,0,["4","4","3","7","4","4","4","4","4","4"],["17","17","6","25","19","19","17","17","17","15"]],["mohammad shafi","bakhtawer",7,["155","67","131","38","37","129","128"],["JK779922416152","JK779771754300","JK779393574273","JK779274972160","JK779044600868","JK781336734004","JK757594057839"],0.077232,1,["13","13","13","13","13","13","7"],["47","47","45","45","45","42","24"]]],"e":0.199841,"k":"3K-19M-0S","r":"","g":0,"u":"0138d515-542d-4e37-9b0a-c1f9e5dfdeac"},{"id":132,"st":0,"v":[["qadir","mukhta",1,["128"],["JK757629160576"],0.002529,0,["7"],["24"]]],"e":0.002529,"k":"0K-1M-0S","r":"","g":0,"u":"00ac2037-f786-4d22-a061-35fcc6b73cc6"}],"groups":[{"id":1,"c":"Medium","b":[8,80],"ev":[[8,80,"Medium","Spelling",[]]],"cs":[]},{"id":2,"c":"Medium","b":[21,102],"ev":[[21,102,"Medium","Spelling",[]]],"cs":[]},{"id":3,"c":"Medium","b":[85,114],"ev":[[85,114,"Medium","Spelling",[]]],"cs":[]}],"plots":733,"ext":14.91771,"kms":"294K-18M-0S","extra":[],"mismatch":[],"khewats":22,"khatas":58,"agriPlots":733};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const BY=new Map(DATA.buckets.map(b=>[b.id,b]));
+const UIDS=new Map(DATA.buckets.map(b=>[String(b.u??b.id),b.id]));      // real bucket ID (as saved in the sheet) → number on this page
+const idOf=v=>UIDS.get(String(v).trim());
+const GR=new Map(DATA.groups.map(g=>[g.id,g]));
+const STATUS={gen:'Generated',not:'Not generated'};
+const plotsOf=b=>b.v.reduce((a,v)=>a+v[2],0);
+const kmsP=k=>k.replace(/K-/,' K ').replace(/M-/,' M ').replace(/S$/,' S');
+const STORE='farmerIdByBucket:'+VILLAGE+(DATA.buckets[0]&&DATA.buckets[0].u?':'+DATA.buckets.length+':'+DATA.buckets[0].u:'');
+const dropRemark=r=>(r||'').split('; ').filter(x=>x&&!/survey no/i.test(x)).join('; ');
+
+/* E: 'B<id>' -> bucket entry {s,fid,reason,note,n,shared,by,at,synced}; 'G<id>' -> {mode:'one'|'sep'} */
+let E={};
+try{E=JSON.parse(localStorage.getItem(STORE)||'{}')}catch(e){}
+const persist=()=>{try{localStorage.setItem(STORE,JSON.stringify(E))}catch(e){}};
+const ent=id=>E['B'+id]||{};
+const gmode=gid=>E['G'+gid]?.mode||'sep';
+
+$('#vname').textContent=VILLAGE?' – '+VILLAGE:'';
+document.title='Farmer ID status by bucket'+$('#vname').textContent;
+$('#totals').textContent=`${DATA.buckets.length} buckets, ${DATA.plots.toLocaleString()} plots, ${DATA.ext.toFixed(2)} ha (${kmsP(DATA.kms)})`;
+
+/* ---------- counting: buckets vs Farmer IDs ---------- */
+function counts(){
+  let gen=0,not=0; const units=new Map();
+  for(const b of DATA.buckets){
+    const e=ent(b.id);
+    if(e.s==='not') not++;
+    if(e.s!=='gen') continue;
+    gen++;
+    const fid=(e.fid||'').trim().toUpperCase();
+    const key=fid?'F'+fid:(e.shared?'G'+e.shared:'B'+b.id);
+    const u=units.get(key)||{b:0,n:0}; u.b++; u.n=Math.max(u.n,e.shared?1:(+e.n||1)); units.set(key,u);
+  }
+  let ids=0,sharedB=0,sharedU=0,splitB=0,splitIds=0;
+  for(const u of units.values()){ ids+=u.n; if(u.b>1){sharedB+=u.b;sharedU++;} else if(u.n>1){splitB++;splitIds+=u.n;} }
+  return {T:DATA.buckets.length,gen,not,open:DATA.buckets.length-gen-not,ids,sharedB,sharedU,splitB,splitIds};
+}
+function renderChips(){$('#chips').innerHTML=FILTERS.map(([k,l,fn])=>`<button class="chip" data-f="${k}" aria-pressed="${filter===k}">${l}<em>${DATA.buckets.filter(fn).length}</em></button>`).join('');}
+function stats(){
+  renderChips();
+  const c=counts(), pl=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+  const notClaimed=c.T-c.gen;                       // simple rule: total − claimed
+  const diff=c.gen-c.ids;                           // buckets absorbed because one ID covers several buckets
+  $('#stats').innerHTML=`<div class="stat"><b>${c.T}</b><span>total buckets</span></div>
+    <div class="stat g"><b>${c.gen}</b><span>buckets claimed</span></div>
+    <div class="stat n"><b>${notClaimed}</b><span>buckets not claimed</span><small>total − claimed</small></div>
+    <div class="stat id"><b>${c.ids}</b><span>Farmer IDs generated</span><small>${c.gen?(diff>0?`${pl(c.gen,'bucket')} claimed by ${pl(c.ids,'ID')}: difference ${diff}, as ${pl(c.sharedB,'bucket')} share ${pl(c.sharedU,'ID')}`:`one ID per claimed bucket`):'&nbsp;'}</small></div>`;
+  $('#bigbar').innerHTML=`<i style="width:${c.gen*100/c.T}%;background:var(--field)"></i>`;
+}
+/* ---------- read-only guidance ---------- */
+function guidance(b,inGroup){
+  const out=[];
+  if(b.g&&!inGroup){const g=GR.get(b.g);out.push(`<div class="guide link">Check if same person as bucket ${g.b.filter(x=>x!==b.id).join(', ')}?</div>`);}
+  if(b.st===3) out.push(`<div class="guide warn">This bucket may hold more than one person. Plots are recorded as:<ul>${b.v.map(v=>`<li>${esc(v[0])} / ${esc(v[1])} (${v[2]} plot${v[2]>1?'s':''})</li>`).join('')}</ul>Check before marking the whole bucket.</div>`);
+  else if(b.st>0) out.push(`<div class="guide soft">Also written as ${b.v.slice(1).map(v=>esc(v[0])+' / '+esc(v[1])).join('; ')}. Same person, written differently.</div>`);
+  const r=dropRemark(b.r); if(r) out.push(`<div class="guide soft">${esc(r)}</div>`);
+  return out.join('');
+}
+function stampText(e){return e.s?`${esc(e.by||'')}${e.at?', '+new Date(e.at).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):''}${!e.synced&&APPS_SCRIPT_URL?' – not yet saved':''}`:''}
+function linkedIdHint(b){
+  if(!b.g) return '';
+  const mine=(ent(b.id).fid||'').trim();
+  const ids=GR.get(b.g).b.filter(x=>x!==b.id).map(x=>[x,(ent(x).fid||'').trim()]).filter(([,f])=>f);
+  if(!ids.length) return '';
+  const f=ids[0][1];
+  if(mine&&mine!==f) return `<div class="use" style="color:var(--brick)">Bucket ${ids[0][0]} has a different ID: ${esc(f)}</div>`;
+  if(mine===f) return '';
+  return `<div class="use">Bucket ${ids[0][0]} has ID ${esc(f)}<button data-use="${esc(f)}">Use same ID</button></div>`;
+}
+
+/* entry panel: target is 'B<id>' (one bucket) or 'G<id>' (one ID for a whole group) */
+function entryPanel(target,e,opts={}){
+  const s=e.s||'';
+  return `<div class="entry ${s?'s-'+s:''}" data-t="${target}">
+    <div class="elabel">Farmer ID status <span>${s?'recorded':'enter here'}</span></div>
+    <div class="seg" role="group" aria-label="Farmer ID status">
+      <button class="sbtn gen ${s==='gen'?'on':''}" data-s="gen" aria-pressed="${s==='gen'}">Generated</button>
+      <button class="sbtn not ${s==='not'?'on':''}" data-s="not" aria-pressed="${s==='not'}">Not generated</button>
+      <button class="rbtn" data-reset="1" ${s||e.fid||e.note||e.reason?'':'disabled'} title="Remove this entry">Reset</button>
+    </div>
+    ${s==='not'?`<select data-f="reason" required><option value="">Select reason…</option>${REASONS.map(r=>`<option ${e.reason===r?'selected':''}>${esc(r)}</option>`).join('')}${e.reason&&!REASONS.includes(e.reason)?`<option value="${esc(e.reason)}" selected>${esc(e.reason)} (no longer on the list)</option>`:''}</select>`:''}
+    ${s==='not'?`<input data-f="note" placeholder="Remarks (optional)" value="${esc(e.note||'')}">`:''}
+    <div class="stamp">${stampText(e)}</div>
+  </div>`;
+}
+function card(b,group){
+  const e=ent(b.id), covered=group&&gmode(group.id)==='one';
+  const cs=group?group.cs:[];
+  const kh=PLOTMODE[mode]?(KHITS.get(b.id)||[]):[];
+  const khs=new Set(kh.map(h=>h.sv));
+  const pm=new Map();
+  b.v.forEach(v=>v[3].forEach((s,i)=>{const k=v[7][i]+'|'+v[8][i]; if(!pm.has(k)) pm.set(k,{kw:v[7][i],kt:v[8][i],sv:[]}); const p=pm.get(k); if(!p.sv.includes(s)) p.sv.push(s);}));
+  const pairs=[...pm.values()].sort((x,y)=>(parseFloat(x.kw)||0)-(parseFloat(y.kw)||0)||(parseFloat(x.kt)||0)-(parseFloat(y.kt)||0));
+  const cov=covered?(e.s==='gen'?`<div class="cov g">Covered by the group's Farmer ID</div>`:e.s==='not'?`<div class="cov n">Not generated (group entry)</div>`:`<div class="cov">Recorded with the group entry above</div>`):'';
+  return `<article class="bk ${e.s?'filled':''} ${covered?'covered':''} ${kh.length?'match':''}" id="b${b.id}">
+    <div class="info">
+      <div class="top"><span class="bid">Bucket ${b.id}</span><span class="nm">${esc(b.v[0][0])}</span></div>
+      <div class="par">${esc(b.v[0][1])}</div>${b.u?`<div class="uid">AgriStack bucket ID ${esc(b.u)}</div>`:''}
+      <div class="kk">${pairs.map((p,n)=>`<div class="kr c${n%8}"><span class="kl">Khewat ${esc(p.kw)}, Khata ${esc(p.kt)}</span><span class="ks">${p.sv.map(x=>khs.has(x)?`<mark class="k">${esc(x)}</mark>`:cs.includes(x)?`<mark title="Shared with the other buckets of this person">${esc(x)}</mark>`:esc(x)).join(', ')}</span></div>`).join('')}</div>
+      ${guidance(b,!!group)}${cov}
+    </div>
+    ${covered?'':entryPanel('B'+b.id,e,{hint:b.g?linkedIdHint(b):undefined,multi:b.st===3?b.v.length:0})}
+  </article>`;
+}
+function groupEntry(g){
+  const e=ent(g.b[0]);
+  return `<div class="gentry">
+    <div class="gsum"><b>One Farmer ID for buckets ${g.b.join(', ')}</b><br>Counts as 1 Farmer ID and ${g.b.length} buckets.</div>
+    ${entryPanel('G'+g.id,e)}
+  </div>`;
+}
+function groupBlock(g,visible){
+  const mode=gmode(g.id);
+  const ids=g.b.map(x=>(ent(x).fid||'').trim()).filter(Boolean), clash=mode==='sep'&&new Set(ids).size>1;
+  return `<section class="group ${g.c==='Medium'?'med':''}" id="g${g.id}">
+    <div class="ghead"><b>Check if same person</b> in buckets ${g.b.join(', ')}?${g.cs.length?` They share khasra ${g.cs.map(esc).join(', ')}.`:''}${g.c==='Medium'?' Spelling differs.':''}</div>
+    <div class="gmode" role="group" aria-label="How was the Farmer ID generated"><span>Farmer ID:</span>
+      <button class="mbtn ${mode==='one'?'on':''}" data-mode="one" data-g="${g.id}" aria-pressed="${mode==='one'}">One Farmer ID for all ${g.b.length}</button>
+      <button class="mbtn ${mode==='sep'?'on':''}" data-mode="sep" data-g="${g.id}" aria-pressed="${mode==='sep'}">Record each bucket separately</button></div>
+    ${clash?`<div class="warnline">Different Farmer IDs entered for these buckets. Check whether they are really one person.</div>`:''}
+    ${mode==='one'?groupEntry(g):''}
+    ${visible.map(b=>card(b,g)).join('')}
+  </section>`;
+}
+
+/* ---------- list ---------- */
+let filter='all', q='', mode='khasra', shown=60;
+const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+const NAMETXT=new Map(DATA.buckets.map(b=>[b.id,norm(b.v.map(v=>v[0]+' '+v[1]).join(' ')+(b.u?' '+b.u:''))]));
+/* ---- khasra search ----
+   Khasra numbers are written many ways: "643/151", "643 / 151", "30 alif", "24min".
+   Typing 643 finds 643 and every 643/... ; typing 151 also finds .../151 ; typing 643/151 finds exactly that.
+   Several numbers can be entered at once, separated by commas. */
+const kn=s=>String(s).toLowerCase().replace(/\s*[\/\\-]\s*/g,'/').replace(/\s+/g,' ').trim();
+function kScore(sv,k){
+  const s=kn(sv); if(s===k) return 4;
+  const segs=s.split('/'), head=segs[0].split(' ')[0];
+  if(segs[0]===k||head===k) return 3;
+  if(k.includes('/')&&s.startsWith(k)) return 2;
+  if(segs.some(x=>x===k||x.split(' ')[0]===k)) return 1;
+  return 0;
+}
+const ALT=new Map(DATA.mismatch.map(r=>[r[5],r[2]]));   // khasra as written in AgriStack where it differs
+const PLOTMODE={khasra:'Khasra'};
+let KQ=[], KHITS=new Map();     // bucket id -> [{sv,kw,kt,pl,owner,score}]
+function computeKhasra(){
+  KHITS=new Map(); KQ=q?q.split(/[,;]+/).map(kn).filter(Boolean):[];
+  if(!KQ.length) return;
+  const score=(sv,kw,kt,pl)=>mode==='khasra'?Math.max(...KQ.map(k=>Math.max(kScore(sv,k),ALT.has(pl)?kScore(ALT.get(pl),k):0))):
+                         Math.max(...KQ.map(k=>kn(mode==='khewat'?kw:kt)===k?4:0));
+  for(const b of DATA.buckets){
+    const hits=[];
+    for(const v of b.v) v[3].forEach((sv,i)=>{const kw=v[7][i],kt=v[8][i],sc=score(sv,kw,kt,v[4][i]); if(sc) hits.push({sv,kw,kt,pl:v[4][i],owner:v[0],score:sc});});
+    if(hits.length) KHITS.set(b.id,hits.sort((a,b)=>b.score-a.score));
+  }
+}
+function hit(b){
+  if(!q) return true;
+  if(PLOTMODE[mode]) return KHITS.has(b.id);
+  if(mode==='bucket') return q.split(/[,;\s]+/).filter(Boolean).some(x=>String(b.id)===x.replace(/\D/g,''));
+  const nq=norm(q); return NAMETXT.get(b.id).includes(nq)||norm(ent(b.id).fid||'').includes(nq);
+}
+const bestScore=b=>PLOTMODE[mode]&&KHITS.has(b.id)?KHITS.get(b.id)[0].score:0;
+const PH={khasra:'Khasra No., e.g. 643/151',khewat:'Khewat No., e.g. 98',khata:'Khata No., e.g. 175',name:'Name or parentage',bucket:'Bucket ID, e.g. 336'};
+const FILTERS=[
+  ['all','All',b=>true],
+  ['open','Not yet filled',b=>!ent(b.id).s],
+  ['gen','Generated',b=>ent(b.id).s==='gen'],
+  ['not','Not generated',b=>ent(b.id).s==='not'],
+  ['nor','Not generated, no reason',b=>ent(b.id).s==='not'&&!ent(b.id).reason],
+  ['linked','Check if same person',b=>!!b.g],
+  ['mixed','May hold more than one person',b=>b.st===3],
+];
+const UNITS=[]; {const seen=new Set();
+  for(const b of DATA.buckets){ if(seen.has(b.id)) continue;
+    if(b.g){const g=GR.get(b.g); g.b.forEach(x=>seen.add(x)); UNITS.push({g,bs:g.b.map(x=>BY.get(x))});}
+    else{seen.add(b.id); UNITS.push({bs:[b]});}}}
+
+function render(){
+  const f=FILTERS.find(x=>x[0]===filter)[2];
+  if(PLOTMODE[mode]) computeKhasra();
+  let n=0, total=0, html='';
+  let list=UNITS;
+  if(q&&PLOTMODE[mode]) list=UNITS.map((u,i)=>[u,Math.max(...u.bs.map(bestScore)),i]).sort((a,b)=>b[1]-a[1]||a[2]-b[2]).map(x=>x[0]);
+  for(const u of list){
+    const vis=u.bs.filter(b=>f(b)&&hit(b)); if(!vis.length) continue;
+    total+=u.bs.length; if(n>=shown) continue;
+    html+=u.g?groupBlock(u.g,u.bs):card(u.bs[0],null);   // a group always shows all its buckets together
+    n+=u.bs.length;
+  }
+  if(total>n) html+=`<button class="more" id="more">Show more</button>`;
+  $('#list').innerHTML=html||`<p class="empty">${q&&PLOTMODE[mode]?`No plot with ${PLOTMODE[mode].toLowerCase()} ${esc(q)}${filter!=='all'?' under this filter':''}.${mode==='khasra'?' Try only the first part of the number, e.g. 643 for 643/151.':' It may be common or government land, see Miscellaneous information.'}`:'Nothing matches. Clear the search or pick another filter.'}</p>`;
+  let info='';
+  if(q&&PLOTMODE[mode]&&KHITS.size){
+    const plots=[...KHITS.values()].reduce((a,h)=>a+h.length,0);
+    info=`${PLOTMODE[mode]} <b>${esc(q)}</b>: ${plots} plot${plots>1?'s':''} in ${KHITS.size} bucket${KHITS.size>1?'s':''}.${mode==='khasra'?' Exact matches are shown first.':''}`;
+  }
+  $('#qinfo').innerHTML=info;
+  stats();
+}
+
+$('#chips').addEventListener('click',e=>{const c=e.target.closest('.chip'); if(!c) return; filter=c.dataset.f; shown=60; render();});
+let qt; $('#q').addEventListener('input',e=>{clearTimeout(qt); qt=setTimeout(()=>{q=e.target.value.trim(); shown=60; render(); window.scrollTo({top:Math.min(window.scrollY,$('header').offsetHeight)});},200)});
+function setMode(m){mode=m; document.querySelectorAll('.smode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));
+  $('#q').placeholder=PH[m]; $('#q').setAttribute('inputmode',m==='khasra'||m==='name'?'text':'numeric'); shown=60; render(); $('#q').focus();}
+document.querySelector('.smode').addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setMode(b.dataset.m);});
+$('#q').placeholder=PH.khasra;
+
+/* ---------- editing ---------- */
+function who(){ if(!SESSION){showLogin('Log in to record entries'); return '';} return SESSION.username; }
+function targets(t){ // bucket ids affected by an entry panel
+  if(t[0]==='G'){const g=GR.get(+t.slice(1)); return g.b.map(id=>({id,shared:g.id}));}
+  return [{id:+t.slice(1),shared:0}];
+}
+function apply(t,patch){
+  const w=who(); if(!w) return false;
+  for(const {id,shared} of targets(t)){
+    E['B'+id]={...ent(id),...patch,shared:shared||0,by:w,at:Date.now(),synced:false};
+    queue(id);
+  }
+  persist(); return true;
+}
+$('#list').addEventListener('click',e=>{
+  if(e.target.id==='more'){shown+=60; render(); return;}
+  const mb=e.target.closest('.mbtn');
+  if(mb){ const gid=+mb.dataset.g, mode=mb.dataset.mode, g=GR.get(gid);
+    if(gmode(gid)===mode) return; if(!who()) return;
+    if(mode==='one'){
+      const filled=g.b.map(ent).filter(x=>x.s);
+      const differ=new Set(filled.map(x=>x.s+'|'+(x.fid||'')+'|'+(x.reason||''))).size>1;
+      if(differ&&!confirm('These buckets have different entries. Use the first filled bucket\'s entry for all of them?')) return;
+      E['G'+gid]={mode:'one'};
+      const base=filled[0]; if(base) apply('G'+gid,{s:base.s,fid:base.fid||'',reason:base.reason||'',note:base.note||'',n:1});
+      else g.b.forEach(id=>{E['B'+id]={...ent(id),shared:gid}; });
+    }else{
+      E['G'+gid]={mode:'sep'};
+      g.b.forEach(id=>{ if(ent(id).s) apply('B'+id,{}); else E['B'+id]={...ent(id),shared:0}; });
+    }
+    persist(); render(); toast(mode==='one'?`Buckets ${g.b.join(', ')} now share one Farmer ID`:'Each bucket recorded separately'); return;}
+  const panel=e.target.closest('.entry'); if(!panel) return; const t=panel.dataset.t;
+  const sb=e.target.closest('.sbtn');
+  if(sb){ const s=sb.dataset.s; const cur=t[0]==='G'?ent(GR.get(+t.slice(1)).b[0]):ent(+t.slice(1)); if(cur.s===s) return;
+    if(apply(t,{s,n:1,fid:'',...(s==='gen'?{reason:'',note:''}:{})})){render(); toast(`${t[0]==='G'?'Buckets '+targets(t).map(x=>x.id).join(', '):'Bucket '+t.slice(1)}: ${STATUS[s]}`);
+      const next=document.querySelector(`[data-t="${t}"] select[data-f=reason]`); next&&next.focus();}
+    return;}
+  if(e.target.dataset.use){ if(apply(t,{fid:e.target.dataset.use})){render(); toast('Same Farmer ID applied');} return;}
+  if(e.target.closest('[data-reset]')){
+    const ids=targets(t).map(x=>x.id);
+    if(!confirm(ids.length>1?`Remove the entry for buckets ${ids.join(', ')}?`:`Remove the entry for bucket ${ids[0]}?`)) return;
+    if(apply(t,{s:'',fid:'',reason:'',note:'',n:1})){render(); toast(ids.length>1?`Buckets ${ids.join(', ')} reset`:`Bucket ${ids[0]} reset`);} }
+});
+$('#list').addEventListener('change',e=>{
+  const panel=e.target.closest('.entry'); if(!panel||!e.target.dataset.f) return;
+  const t=panel.dataset.t, f=e.target.dataset.f;
+  let v=e.target.value.trim(); if(f==='fid'){v=v.toUpperCase(); e.target.value=v;} if(f==='n') v=+v;
+  if(!apply(t,{[f]:v})) return;
+  const st=panel.querySelector('.stamp'); if(st) st.innerHTML=stampText(ent(targets(t)[0].id));
+  // refresh hints in the same group without rebuilding the field being edited
+  const id=targets(t)[0].id, b=BY.get(id);
+  if(b.g&&f==='fid') GR.get(b.g).b.forEach(x=>{const h=document.querySelector(`#b${x} .hint`); if(h) h.innerHTML=linkedIdHint(BY.get(x));});
+  stats();
+});
+function toast(t){const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),1800);}
+
+/* ---------- row sent to the sheet / CSV ---------- */
+function rowFor(id){
+  const b=BY.get(id), e=ent(id);
+  let guide='';
+  if(b.g){const g=GR.get(b.g); guide=`Check if same person as bucket ${g.b.filter(x=>x!==id).join(', ')}`;}
+  if(b.st===3) guide+=(guide?'; ':'')+'May hold more than one person';
+  const shared=e.shared?GR.get(e.shared).b:[];
+  return {village:VILLAGE,bucket_id:b.u??id,owner:b.v[0][0],parentage:b.v[0][1],
+    other_names:b.v.slice(1).map(v=>v[0]+' / '+v[1]).join(' | '),plots:plotsOf(b),
+    survey_nos:[...new Set(b.v.flatMap(v=>v[3]))].join(', '),
+    khewat_nos:[...new Set(b.v.flatMap(v=>v[7]))].join(', '),khata_nos:[...new Set(b.v.flatMap(v=>v[8]))].join(', '),area_ha:b.e,group:b.g||'',guidance:guide,
+    status:e.s?STATUS[e.s]:'',
+    id_basis:e.s?(e.shared?`One ID for buckets ${shared.join(', ')}`:(e.s==='gen'&&(+e.n||1)>1?`${e.n} IDs for this bucket`:'Own entry')):'',
+    ids_counted:e.s==='gen'?(e.shared?(shared[0]===id?1:0):(+e.n||1)):0,
+    farmer_id:e.fid||'',reason:e.reason||'',remarks:e.note||'',
+    submitted_by:e.s||e.note?e.by||'':'',submitted_at:e.at?new Date(e.at).toISOString():''};
+}
+
+/* ---------- login and server calls ---------- */
+const SKEY='farmerIdSession:'+TEHSIL+':'+VILLAGE;
+try{REASONS=JSON.parse(localStorage.getItem('farmerIdReasons')||'[]')}catch(e){}
+function setReasons(list){ if(!Array.isArray(list)) return; REASONS=list; try{localStorage.setItem('farmerIdReasons',JSON.stringify(list))}catch(e){} }
+let SESSION=null;
+try{SESSION=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){}
+const keyN=s=>String(s||'').trim().toLowerCase();
+async function api(action,payload={}){
+  const r=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:SESSION&&SESSION.token,...payload})});
+  const j=await r.json();
+  if(!j.ok){ const e=new Error(j.error||'Request failed'); e.auth=!!j.auth; if(e.auth){ clearSession(); showLogin(j.error); } throw e; }
+  return j;
+}
+function clearSession(){SESSION=null; try{localStorage.removeItem(SKEY)}catch(e){} setAcct();}
+function setAcct(){
+  $('#acct').innerHTML=SESSION&&APPS_SCRIPT_URL?`Logged in as <b>${esc(SESSION.username)}</b> <button class="linkbtn" id="logout">Log out</button>`:(APPS_SCRIPT_URL?`<button class="loginbtn" id="loginbtn">Log in to enter data</button>`:'Not connected to Google Sheets – entries stay on this device');
+}
+function showLogin(msg){ $('#lsub').textContent=`${VILLAGE}${TEHSIL?', Tehsil '+TEHSIL:''}`; $('#lerr').textContent=msg||''; $('#login').hidden=false; setTimeout(()=>$('#lu').focus(),50); }
+$('#lform').addEventListener('submit',async e=>{
+  e.preventDefault(); $('#lbtn').disabled=true; $('#lerr').textContent='';
+  try{
+    const j=await api('login',{username:$('#lu').value.trim(),password:$('#lp').value});
+    if(j.role!=='village'){ throw new Error('This is an admin login. Use the village login on this page.'); }
+    if(keyN(j.village)!==keyN(VILLAGE)||(TEHSIL&&keyN(j.tehsil)!==keyN(TEHSIL))){ api('logout',{token:j.token}).catch(()=>{}); throw new Error(`This login is for ${j.village} (${j.tehsil}), not ${VILLAGE}.`); }
+    SESSION={token:j.token,username:j.username,village:j.village,tehsil:j.tehsil};
+    try{localStorage.setItem(SKEY,JSON.stringify(SESSION))}catch(_){}
+    $('#lp').value=''; $('#login').hidden=true; setAcct();
+    api('villageMeta',{total_buckets:DATA.buckets.length,groups:DATA.groups.length}).catch(()=>{});
+    await load(); if(pending.size) flush();
+  }catch(err){ $('#lerr').textContent=err.message; }
+  finally{ $('#lbtn').disabled=false; }
+});
+document.addEventListener('click',async e=>{
+  if(e.target.id==='loginbtn'){ showLogin(); return; }
+  if(e.target.id==='lview'){ $('#login').hidden=true; return; }
+  if(e.target.id!=='logout') return;
+  if(pending.size&&!confirm('Some entries are not saved yet. Log out anyway? They will be sent after the next login.')) return;
+  const tk=SESSION&&SESSION.token; clearSession(); if(tk) api('logout',{token:tk}).catch(()=>{}); setSync(); toast('Logged out – view only'); });
+
+/* ---------- Google Sheets sync ---------- */
+const pending=new Set(Object.keys(E).filter(k=>k[0]==='B'&&!E[k].synced).map(k=>+k.slice(1)));
+let timer=null, busy=false;
+function queue(id){pending.add(id); setSync(); clearTimeout(timer); timer=setTimeout(flush,1200);}
+async function flush(){
+  if(!APPS_SCRIPT_URL||busy||!pending.size||!SESSION) return setSync();
+  busy=true; setSync('busy');
+  const ids=[...pending].slice(0,25);
+  try{
+    await api('save',{items:ids.map(rowFor)});
+    ids.forEach(id=>{pending.delete(id); if(E['B'+id]) E['B'+id].synced=true; const st=document.querySelector(`[data-t="B${id}"] .stamp`); if(st) st.innerHTML=stampText(ent(id));});
+    persist(); busy=false; setSync(); if(pending.size) flush();
+  }catch(err){busy=false; setSync('err',err.auth?'log in again':err.message); if(!err.auth){clearTimeout(timer); timer=setTimeout(flush,8000);}}
+}
+function setSync(state,msg){
+  const el=$('#sync'), t=el.querySelector('span'); el.className='sync';
+  if(!APPS_SCRIPT_URL){t.textContent='Saved on this device only'; return;}
+  if(!SESSION){ if(state==='err'){el.classList.add('err'); t.textContent=`Could not load entries (${msg})`;} else if(state==='busy'){el.classList.add('busy'); t.textContent='Loading entries…';} else t.textContent='View only. Log in to enter data.'; return; }
+  if(state==='busy'){el.classList.add('busy'); t.textContent='Saving to Google Sheet…'; return;}
+  if(state==='err'){el.classList.add('err'); t.textContent=`Not saved (${msg}). Retrying.`; return;}
+  if(pending.size){el.classList.add('busy'); t.textContent=`${pending.size} waiting to save`; return;}
+  el.classList.add('ok'); t.textContent='All entries saved to Google Sheet';
+}
+async function load(){
+  if(!APPS_SCRIPT_URL) return;
+  setSync('busy');
+  try{
+    const j=SESSION?await api('list'):await api('publicList',{village:VILLAGE,tehsil:TEHSIL});
+    const seen=new Set(j.items.filter(it=>it.status).map(it=>idOf(it.bucket_id)));
+    // entries cleared elsewhere: drop saved local copies that the sheet no longer has
+    for(const k of Object.keys(E)) if(k[0]==='B'&&E[k].synced&&E[k].s&&!seen.has(+k.slice(1))) E[k]={...E[k],s:'',reason:'',note:'',fid:'',shared:0};
+    setReasons(j.reasons);
+    const rev={'Claimed':'gen','Not claimed':'not','Generated':'gen','Not generated':'not'};
+    for(const it of j.items){
+      const id=idOf(it.bucket_id); if(id===undefined) continue; const at=Date.parse(it.submitted_at)||0, loc=E['B'+id];
+      if(loc&&!loc.synced&&(loc.at||0)>at) continue;
+      const b=BY.get(id); if(!b) continue;
+      const shared=/^One ID for buckets/.test(it.id_basis||'')?b.g:0;
+      const n=+(String(it.id_basis||'').match(/^(\d+) IDs/)||[])[1]||1;
+      E['B'+id]={s:rev[it.status]||'',fid:it.farmer_id||'',reason:it.reason||'',note:it.remarks||'',n,shared,by:it.submitted_by||'',at,synced:true};
+      if(shared) E['G'+shared]={mode:'one'};
+    }
+    persist(); render(); setSync(); if(pending.size) flush();
+  }catch(err){setSync('err',err.message)}
+}
+window.addEventListener('beforeunload',e=>{if(APPS_SCRIPT_URL&&pending.size){e.preventDefault(); e.returnValue='';}});
+
+$('#csv').addEventListener('click',()=>{
+  const rows=DATA.buckets.map(b=>rowFor(b.id)), cols=Object.keys(rows[0]);
+  const csv=[cols.join(',')].concat(rows.map(o=>cols.map(c=>`"${String(o[c]).replace(/"/g,'""')}"`).join(','))).join('\r\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));
+  a.download=`farmer_id_by_bucket_${(VILLAGE||'village').replace(/\W+/g,'_')}.csv`; a.click();
+});
+
+/* ---------- miscellaneous information ---------- */
+function miscHtml(){
+  const X=DATA.extra, isInd=r=>!/^(na|sarkar|)$/i.test(String(r[1]).trim());
+  const ind=X.filter(isInd), non=X.filter(r=>!isInd(r));
+  const cat=r=>{const n=r[0].toLowerCase();
+    if(/aabadi|abadi/.test(n)) return 'Aabadi Deh'; if(/shamilat/.test(n)) return 'Shamilat';
+    if(/ring road|nhai|sarkar/.test(n)) return 'Sarkar / Ring Road / NHAI'; if(/road|khhad|ghadh/.test(n)) return 'Roads and other public use';
+    if(/imambada|shia|ahli islam|ahl /.test(n)) return 'Religious / community'; if(/maqbooza|makbooza/.test(n)) return 'Maqbooza (departments, canals, panchayat)'; return 'Other';};
+  const groups={}; non.forEach(r=>(groups[cat(r)]=groups[cat(r)]||[]).push(r));
+  const tbl=(rows,owner=true)=>`<div class="mtwrap"><table class="mt"><thead><tr>${owner?'<th>Owner</th><th>Parentage</th>':'<th>Recorded as</th>'}<th>Khasra</th><th>Khewat</th><th>Khata</th><th>Hectare</th><th>Holder</th></tr></thead><tbody>${rows.map(r=>`<tr>${owner?`<td>${esc(r[0])}</td><td>${esc(r[1])}</td>`:`<td>${esc(r[0])}</td>`}<td>${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td>${r[5].toFixed(4)}</td><td>${esc(r[6])}</td></tr>`).join('')}</tbody></table></div>`;
+  const indNames=[...new Map(ind.map(r=>[r[0]+'|'+r[1],r])).values()].map(r=>`${esc(r[0])} s/o ${esc(r[1])} (${ind.filter(x=>x[0]===r[0]&&x[1]===r[1]).length} plot${ind.filter(x=>x[0]===r[0]&&x[1]===r[1]).length>1?'s':''})`);
+  const M=DATA.mismatch;
+  return `<p>The AgriStack record for ${esc(VILLAGE||'this village')} has ${DATA.agriPlots.toLocaleString()} plots in ${DATA.khewats} khewats and ${DATA.khatas} khatas. Every plot in the bucket data was found in it, with matching owner, parentage and area.</p>
+  <h3>Extra plots in AgriStack: ${X.length} plots are not in any bucket</h3>
+  <p>${non.length} are non-individual land: ${Object.keys(groups).join(', ')}. The other ${ind.length} look like individuals left out of the buckets: ${indNames.join(', ')}.</p>
+  <h3>Individuals without a bucket</h3>${tbl(ind)}
+  <h3>Non-individual land</h3>
+  ${Object.entries(groups).map(([k,rows])=>`<details class="cat"><summary>${esc(k)}: ${rows.length} plot${rows.length>1?'s':''}, ${rows.reduce((a,r)=>a+r[5],0).toFixed(4)} ha</summary>${tbl(rows,false)}</details>`).join('')}
+  ${M.length?`<h3>Khasra recorded differently</h3><p>In ${M.length===1?'this plot':'these plots'} the bucket data and AgriStack give a different khasra number. Correct the bucket data.</p>
+  <div class="mtwrap"><table class="mt"><thead><tr><th>Bucket</th><th>In bucket data</th><th>In AgriStack</th><th>Khewat</th><th>Khata</th><th>Plot ID</th></tr></thead><tbody>${M.map(r=>`<tr><td>${r[0]}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+}
+$('#misc').addEventListener('click',()=>{$('#miscBody').innerHTML=miscHtml(); $('#miscDlg').showModal();});
+$('#miscClose').addEventListener('click',()=>$('#miscDlg').close());
+$('#miscDlg').addEventListener('click',e=>{if(e.target.id==='miscDlg') $('#miscDlg').close();});
+
+if(!APPS_SCRIPT_URL){ SESSION={username:'this device'}; setAcct(); render(); setSync(); }
+else if(SESSION&&SESSION.token){ setAcct(); render(); setSync(); load(); }
+else { setAcct(); render(); setSync(); load(); }
+</script>
+</body>
+</html>
