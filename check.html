@@ -111,9 +111,14 @@ $('#go').addEventListener('click',async()=>{
     if(ver!=='pin') errs.push({pinold:'It is the version that remembers the PIN after the browser is closed.',login:'It is the username/password version.',open:'It is the no-PIN version.',old:'It is an early version.'}[ver]+' Run it through the page updater and upload the result.');
     if(p.url!==url) errs.push('It points to a different link. Run it through the page updater (which sets the link above) and upload the result.');
     if(mv!==undefined&&mv.trim().toLowerCase()!==String(v.village).trim().toLowerCase()) errs.push(`The page says village “${esc(mv)}” but the sheet says “${esc(v.village)}”.`);
-    if(mt!==undefined&&mt&&mt.trim().toLowerCase()!==String(v.tehsil).trim().toLowerCase()) errs.push(`The page says tehsil “${esc(mt)}” but the sheet says “${esc(v.tehsil)}”. Edit the village in admin or regenerate the page so they match.`);
+    let note='';
+    if(mt!==undefined&&mt&&mt.trim().toLowerCase()!==String(v.tehsil).trim().toLowerCase()){
+      const dup=villages.filter(x=>String(x.village).trim().toLowerCase()===String(v.village).trim().toLowerCase()).length>1;
+      if(((ping&&ping.features)||[]).includes('tehsilFromSheet')&&!dup) note=` · the page was made with tehsil “${esc(mt)}”; the sheet’s tehsil “${esc(v.tehsil)}” is used, nothing to do`;
+      else errs.push(dup?`The page says tehsil “${esc(mt)}” but the sheet says “${esc(v.tehsil)}”, and this village name is registered in more than one tehsil. Run the page through the page updater and choose the right tehsil.`:`The page says tehsil “${esc(mt)}” but the sheet says “${esc(v.tehsil)}”. Paste the latest backend code in Apps Script and deploy a New version: it then takes the tehsil from the sheet for every village.`);
+    }
     if(!v.total) errs.push('No buckets are loaded in the sheet for this village. In admin → Villages → Edit, choose its _sheet.xlsx and save.');
-    if(errs.length) add('#r3','bad',name,'',errs.join('<br>')); else add('#r3','ok',name,`${v.total} buckets, ${v.generated} generated, ${v.not_generated} not generated`);
+    if(errs.length) add('#r3','bad',name,'',errs.join('<br>')); else add('#r3','ok',name,`${v.total} buckets, ${v.generated} generated, ${v.not_generated} not generated${note}`);
   }
   $('#go').disabled=false; done();
 });
