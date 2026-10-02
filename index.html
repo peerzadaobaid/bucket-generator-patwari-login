@@ -30,7 +30,7 @@ h1{font:600 27px/1.15 "IBM Plex Serif",Georgia,serif;margin:0}
 .adminlink{font-size:14px;color:var(--ink-2);text-decoration:underline}
 
 /* district strip */
-.strip{background:var(--card);border:1px solid var(--card-line);border-radius:12px;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,30,40,.05)}
+.strip{background:var(--card);border:1px solid var(--card-line);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,30,40,.05)}
 .strip .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
 .strip .top .big{font-size:38px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
 .strip .top .lbl{font-size:15px;color:var(--ink-2)}
@@ -47,11 +47,13 @@ h1{font:600 27px/1.15 "IBM Plex Serif",Georgia,serif;margin:0}
 .num span{font-size:13px;color:var(--ink-2)}
 .num.g{border-color:var(--field)} .num.g b{color:var(--field)}
 .num.a{border-color:var(--amber)} .num.a b{color:var(--amber-ink)}
-.num.r{border-color:var(--grey)}
+.num.b{border-color:var(--brick)} .num.b b{color:var(--brick)}
+.num small{display:block;font-size:11px;color:var(--ink-3)}
 .num.i{border-color:var(--slate)} .num.i b{color:var(--slate)}
 
 /* colour key */
-.key{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;color:var(--ink-2);margin:0 2px 12px}
+.key{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;color:var(--ink-2);margin:8px 0 0}
+.key b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .key i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 
 .jump{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 10px;padding-bottom:2px}
@@ -112,18 +114,13 @@ footer{font-size:13px;color:var(--ink-3);padding-top:22px;text-align:center}
 
   <section class="strip" id="district"><div class="msg">Loading…</div></section>
 
-  <div class="key" aria-label="Colour key">
-    <span><i style="background:var(--field)"></i>Generated</span>
-    <span><i style="background:var(--amber)"></i>Not generated</span>
-    <span><i style="background:var(--grey)"></i>Not yet submitted</span>
-  </div>
   <div class="jump" id="jump"></div>
   <input class="search" id="q" type="search" placeholder="Search village" autocomplete="off">
   <div id="tehsils"></div>
 
   <div class="roles">
     <div class="role"><h3>Entering data for a village</h3>
-      <p>Open your village from the list above. Anyone can view it. When you tap Generated, Not generated or Reset on a bucket, the page asks for the PIN once and then stays in editing mode.</p></div>
+      <p>Open your village from the list above. Anyone can view it. When you tap Generated, Not generated or Reset on a bucket, the page asks for the PIN and then stays in editing mode until it is closed.</p></div>
     <div class="role"><h3>Administrator</h3>
       <p>Add villages, see the analysis for village, tehsil and district, manage the list of reasons and change the PIN.</p>
       <a href="admin.html">Admin login →</a></div>
@@ -145,7 +142,7 @@ let D=null, open=new Set(), firstRender=true;
 function roll(list){
   const s={villages:list.length,total:0,generated:0,not_generated:0,farmer_ids:0};
   list.forEach(v=>{s.total+=+v.total||0; s.generated+=+v.generated||0; s.not_generated+=+v.not_generated||0; s.farmer_ids+=+v.farmer_ids||0;});
-  s.submitted=s.generated+s.not_generated; s.pending=Math.max(0,s.total-s.submitted); s.psub=pct(s.submitted,s.total);
+  s.submitted=s.generated+s.not_generated; s.not_claimed=Math.max(0,s.total-s.generated); s.pending=Math.max(0,s.total-s.submitted); s.psub=pct(s.submitted,s.total);
   return s;
 }
 const bar=(s,cls='')=>`<span class="bar ${cls}" role="img" aria-label="${s.psub}% submitted: ${s.generated} generated, ${s.not_generated} not generated, ${s.pending} not yet submitted"><i style="width:${s.total?s.generated*100/s.total:0}%;background:var(--field)"></i><i style="width:${s.total?s.not_generated*100/s.total:0}%;background:var(--amber)"></i></span>`;
@@ -167,14 +164,15 @@ function render(){
   const all=D.villages, d=roll(all);
   $('#dist').textContent=D.district;
   $('#district').innerHTML=`<div class="top"><span class="big">${d.psub}%</span><span class="lbl">of buckets submitted</span>
-      <span class="of">${fmt(d.submitted)} of ${fmt(d.total)} buckets · ${fmt(d.villages)} village${d.villages===1?'':'s'}</span><span class="sp"></span>
+      <span class="of">${fmt(d.submitted)} of ${fmt(d.total)} buckets</span><span class="sp"></span>
       <span class="upd">Updated ${new Date(D.at).toLocaleTimeString([],{timeStyle:'short'})} · <button class="linkbtn" id="rf">Refresh</button></span></div>
     ${bar(d,'big')}
+    <div class="key"><span><i style="background:var(--field)"></i>Generated <b>${fmt(d.generated)}</b></span><span><i style="background:var(--amber)"></i>Not generated <b>${fmt(d.not_generated)}</b></span><span><i style="background:var(--grey)"></i>Not yet submitted <b>${fmt(d.pending)}</b></span></div>
     <div class="nums">
+      <div class="num"><b>${fmt(d.villages)}</b><span>Total villages</span></div>
       <div class="num"><b>${fmt(d.total)}</b><span>Total buckets</span></div>
-      <div class="num g"><b>${fmt(d.generated)}</b><span>Generated</span></div>
-      <div class="num a"><b>${fmt(d.not_generated)}</b><span>Not generated</span></div>
-      <div class="num r"><b>${fmt(d.pending)}</b><span>Not yet submitted</span></div>
+      <div class="num g"><b>${fmt(d.generated)}</b><span>Buckets claimed</span></div>
+      <div class="num b"><b>${fmt(d.not_claimed)}</b><span>Buckets not claimed</span><small>total − claimed</small></div>
       <div class="num i"><b>${fmt(d.farmer_ids)}</b><span>Farmer IDs generated</span></div>
     </div>`;
   const known=D.tehsils||[], tehs=known.filter(t=>all.some(v=>v.tehsil===t)).concat([...new Set(all.map(v=>v.tehsil))].filter(t=>!known.includes(t)));

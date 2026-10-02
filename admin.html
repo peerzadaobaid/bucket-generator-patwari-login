@@ -218,7 +218,7 @@ footer{font-size:13px;color:var(--ink-3);text-align:center;padding:10px 0 30px}
   <section class="panel" id="p-set" hidden>
     <div class="card">
       <h2>Edit PIN for village pages</h2>
-      <p style="margin:0 0 8px;color:var(--ink-2)">Anyone can view village pages. The PIN is asked once per device when someone first tries to make or change an entry. Current PIN: <b id="curpin">…</b></p>
+      <p style="margin:0 0 8px;color:var(--ink-2)">Anyone can view village pages. The PIN is asked when someone first tries to make or change an entry, and again every time the page is opened afresh; it is not remembered after the page or browser is closed. Current PIN: <b id="curpin">…</b></p>
       <form class="form" id="pinform" autocomplete="off">
         <div><label for="newpin">New PIN (4–8 digits)</label><input class="in" id="newpin" inputmode="numeric" pattern="\d{4,8}" required></div>
         <div><button class="btn" type="submit">Change PIN</button></div>
