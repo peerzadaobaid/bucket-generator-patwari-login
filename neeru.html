@@ -544,9 +544,10 @@ function setReasons(list){ if(!Array.isArray(list)) return; REASONS=list; try{lo
 const NKEY='farmerIdName';
 let NAME=''; try{NAME=localStorage.getItem(NKEY)||''}catch(e){}
 const SESSION={get username(){return NAME||'Public';}};      // the optional name is saved with each entry
-/* Viewing is open to all. Entering or changing data needs the common edit PIN, asked once per device. */
-const PKEY='farmerIdPin';
-let PIN=''; try{PIN=localStorage.getItem(PKEY)||''}catch(e){}
+/* Viewing is open to all. Entering or changing data needs the common edit PIN.
+   The PIN is kept only while this page is open: it is asked again whenever the page is opened or reloaded. */
+const PIN_KEPT='page-only';
+let PIN=''; try{ localStorage.removeItem('farmerIdPin'); sessionStorage.removeItem('farmerIdPin'); }catch(e){}   // forget a PIN remembered by an earlier version
 let lastBtn=null;
 document.addEventListener('click',e=>{ const b=e.target.closest('#list button'); if(b) lastBtn=b; },true);
 async function api(action,payload={}){
@@ -555,7 +556,7 @@ async function api(action,payload={}){
   if(!j.ok){ const e=new Error(j.error||'Request failed'); e.pin=!!j.pin; if(e.pin){ setPin(''); askPin(j.error); } throw e; }
   return j;
 }
-function setPin(p){ PIN=p; try{ p?localStorage.setItem(PKEY,p):localStorage.removeItem(PKEY); }catch(e){} setAcct(); }
+function setPin(p){ PIN=p; setAcct(); }
 function askPin(msg){ $('#perr').textContent=msg||''; $('#pinbox').hidden=false; $('#pin').value=''; setTimeout(()=>$('#pin').focus(),50); }
 $('#pform').addEventListener('submit',async e=>{
   e.preventDefault(); const p=$('#pin').value.trim(); if(!p) return;
