@@ -105,10 +105,10 @@ $('#go').addEventListener('click',async()=>{
   for(const v of villages){
     const f=slug(v.village)+'.html', p=await page(f), name=`${esc(v.village)} (${esc(f)})`;
     if(p.missing){ add('#r3','bad',name+': page not on the website','The village is in the sheet but its page is not in GitHub (or has a different file name).',`Upload ${esc(f)} to the top folder of the GitHub repository. The name must be exactly ${esc(f)}.`); continue; }
-    const ver=p.text.includes("PIN_KEPT='page-only'")?'pin':p.text.includes("api('checkPin')")?'pinold':p.text.includes("api('openSave'")?'open':p.text.includes('id="lform"')?'login':'old';
+    const ver=p.text.includes('REASON_BEFORE_SAVE')?'pin':p.text.includes('REMARKS_NEED_REASON')?'noreason':p.text.includes("PIN_KEPT='page-only'")?'norule':p.text.includes("api('checkPin')")?'pinold':p.text.includes("api('openSave'")?'open':p.text.includes('id="lform"')?'login':'old';
     const mv=(p.text.match(/const VILLAGE\s*=\s*"([^"]*)"/)||[])[1], mt=(p.text.match(/const TEHSIL\s*=\s*"([^"]*)"/)||[])[1];
     const errs=[];
-    if(ver!=='pin') errs.push({pinold:'It is the version that remembers the PIN after the browser is closed.',login:'It is the username/password version.',open:'It is the no-PIN version.',old:'It is an early version.'}[ver]+' Run it through the page updater and upload the result.');
+    if(ver!=='pin') errs.push({noreason:'It is the version that accepts “Not generated” without a reason.',norule:'It is the version that lets remarks be typed without choosing a reason.',pinold:'It is the version that remembers the PIN after the browser is closed.',login:'It is the username/password version.',open:'It is the no-PIN version.',old:'It is an early version.'}[ver]+' Run it through the page updater and upload the result.');
     if(p.url!==url) errs.push('It points to a different link. Run it through the page updater (which sets the link above) and upload the result.');
     if(mv!==undefined&&mv.trim().toLowerCase()!==String(v.village).trim().toLowerCase()) errs.push(`The page says village “${esc(mv)}” but the sheet says “${esc(v.village)}”.`);
     let note='';
