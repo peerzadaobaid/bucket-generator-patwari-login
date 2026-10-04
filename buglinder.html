@@ -10,7 +10,7 @@
 <script>
 /* ============ SETTINGS – edit these lines only ============ */
 const VILLAGE = "Buglinder";   // village name – must match the village registered in the admin page
-const TEHSIL = "Sumbal";     // tehsil – must match too
+const TEHSIL = "Tulail";     // tehsil – must match too
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby5STKAh0QGza6oGW5hXqZZp2kzst_nxchZzSskZ7mOUk-TTVR6aH7Qw7VAjr3LFZ29Ag/exec";  // paste the Apps Script /exec URL to save to Google Sheets
 let REASONS = [];                // filled from the 'Reasons' tab of the Google Sheet when the page loads
 </script>
@@ -132,6 +132,10 @@ main{padding-top:14px}
 .sbtn.on.gen{background:var(--field);border-color:var(--field);color:#fff}
 .sbtn.on.not{background:var(--brick);border-color:var(--brick);color:#fff}
 .entry input,.entry select{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:7px 10px;font-size:14px}
+.entry select.need{border-color:var(--brick);border-width:2px}
+.needmsg{font-size:13px;color:var(--brick);margin-top:6px;font-weight:500}
+.entry.draft{border-style:dashed}
+.entry input:disabled{opacity:.55;cursor:not-allowed;background:var(--line-2)}
 .entry input.fid{font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .use{font-size:13px;color:var(--orange)}
 .use button{border:1px solid var(--orange);background:none;color:var(--orange);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px;margin-left:4px}
@@ -327,18 +331,24 @@ function linkedIdHint(b){
 }
 
 /* entry panel: target is 'B<id>' (one bucket) or 'G<id>' (one ID for a whole group) */
+/* REASON_BEFORE_SAVE: pressing "Not generated" records nothing by itself. The entry is made, counted and
+   saved only when a reason is chosen. Until then the box is a draft kept on this screen only. */
+const DRAFT=new Set();
 function entryPanel(target,e,opts={}){
-  const s=e.s||'';
-  return `<div class="entry ${s?'s-'+s:''}" data-t="${target}">
-    <div class="elabel">Farmer ID status <span>${s?'recorded':'enter here'}</span></div>
+  const draft=DRAFT.has(target), s=draft?'not':(e.s||'');
+  if(draft) e={...e,reason:'',note:'',_was:e.s};
+  const need=s==='not'&&!e.reason;
+  return `<div class="entry ${s?'s-'+s:''} ${draft?'draft':''}" data-t="${target}">
+    <div class="elabel">Farmer ID status <span>${draft?'not recorded yet':s?'recorded':'enter here'}</span></div>
     <div class="seg" role="group" aria-label="Farmer ID status">
       <button class="sbtn gen ${s==='gen'?'on':''}" data-s="gen" aria-pressed="${s==='gen'}">Generated</button>
       <button class="sbtn not ${s==='not'?'on':''}" data-s="not" aria-pressed="${s==='not'}">Not generated</button>
       <button class="rbtn" data-reset="1" ${s||e.fid||e.note||e.reason?'':'disabled'} title="Remove this entry">Reset</button>
     </div>
-    ${s==='not'?`<select data-f="reason" required><option value="">Select reason…</option>${REASONS.map(r=>`<option ${e.reason===r?'selected':''}>${esc(r)}</option>`).join('')}${e.reason&&!REASONS.includes(e.reason)?`<option value="${esc(e.reason)}" selected>${esc(e.reason)} (no longer on the list)</option>`:''}</select>`:''}
-    ${s==='not'?`<input data-f="note" placeholder="Remarks (optional)" value="${esc(e.note||'')}">`:''}
-    <div class="stamp">${stampText(e)}</div>
+    ${s==='not'?`<select data-f="reason" required class="${need?'need':''}"><option value="">Select reason…</option>${REASONS.map(r=>`<option ${e.reason===r?'selected':''}>${esc(r)}</option>`).join('')}${e.reason&&!REASONS.includes(e.reason)?`<option value="${esc(e.reason)}" selected>${esc(e.reason)} (no longer on the list)</option>`:''}</select>`:''}
+    ${s==='not'?`<input data-f="note" ${e.reason?'':'disabled'} placeholder="${e.reason?'Remarks (optional)':'Remarks – select a reason first'}" value="${esc(e.note||'')}">`:''}
+    ${need?`<div class="needmsg">${draft?'Choose a reason. The entry is recorded only after a reason is chosen.':'Reason missing. Choose a reason for this entry.'}</div>`:''}
+    <div class="stamp">${draft?(e._was==='gen'?'Still recorded as Generated until a reason is chosen.':''):stampText(e)}</div>
   </div>`;
 }
 function card(b,group){
@@ -482,7 +492,7 @@ $('#list').addEventListener('click',e=>{
   if(e.target.id==='more'){shown+=60; render(); return;}
   const mb=e.target.closest('.mbtn');
   if(mb){ const gid=+mb.dataset.g, mode=mb.dataset.mode, g=GR.get(gid);
-    if(gmode(gid)===mode) return; if(!who()) return;
+    if(gmode(gid)===mode) return; if(!who()) return; DRAFT.clear();
     if(mode==='one'){
       const filled=g.b.map(ent).filter(x=>x.s);
       const differ=new Set(filled.map(x=>x.s+'|'+(x.fid||'')+'|'+(x.reason||''))).size>1;
@@ -497,12 +507,18 @@ $('#list').addEventListener('click',e=>{
     persist(); render(); toast(mode==='one'?`Buckets ${g.b.join(', ')} now share one Farmer ID`:'Each bucket recorded separately'); return;}
   const panel=e.target.closest('.entry'); if(!panel) return; const t=panel.dataset.t;
   const sb=e.target.closest('.sbtn');
-  if(sb){ const s=sb.dataset.s; const cur=t[0]==='G'?ent(GR.get(+t.slice(1)).b[0]):ent(+t.slice(1)); if(cur.s===s) return;
+  if(sb){ const s=sb.dataset.s; const cur=t[0]==='G'?ent(GR.get(+t.slice(1)).b[0]):ent(+t.slice(1));
+    if(s==='not'){                                       // nothing is recorded yet: first a reason must be chosen
+      if(DRAFT.has(t)||cur.s==='not') return; if(!who()) return;
+      DRAFT.add(t); render(); const sel=document.querySelector(`[data-t="${t}"] select[data-f=reason]`); sel&&sel.focus(); return; }
+    if(DRAFT.has(t)){ DRAFT.delete(t); if(cur.s===s){ render(); return; } }
+    if(cur.s===s) return;
     if(apply(t,{s,n:1,fid:'',...(s==='gen'?{reason:'',note:''}:{})})){render(); toast(`${t[0]==='G'?'Buckets '+targets(t).map(x=>x.id).join(', '):'Bucket '+t.slice(1)}: ${STATUS[s]}`);
       const next=document.querySelector(`[data-t="${t}"] select[data-f=reason]`); next&&next.focus();}
     return;}
   if(e.target.dataset.use){ if(apply(t,{fid:e.target.dataset.use})){render(); toast('Same Farmer ID applied');} return;}
   if(e.target.closest('[data-reset]')){
+    if(DRAFT.has(t)){ DRAFT.delete(t); render(); return; }          // a draft is simply dropped; nothing was recorded
     const ids=targets(t).map(x=>x.id);
     if(!confirm(ids.length>1?`Remove the entry for buckets ${ids.join(', ')}?`:`Remove the entry for bucket ${ids[0]}?`)) return;
     if(apply(t,{s:'',fid:'',reason:'',note:'',n:1})){render(); toast(ids.length>1?`Buckets ${ids.join(', ')} reset`:`Bucket ${ids[0]} reset`);} }
@@ -511,7 +527,19 @@ $('#list').addEventListener('change',e=>{
   const panel=e.target.closest('.entry'); if(!panel||!e.target.dataset.f) return;
   const t=panel.dataset.t, f=e.target.dataset.f;
   let v=e.target.value.trim(); if(f==='fid'){v=v.toUpperCase(); e.target.value=v;} if(f==='n') v=+v;
-  if(!apply(t,{[f]:v})) return;
+  const REMARKS_NEED_REASON=true;                       // remarks can be typed only after a reason is chosen
+  if(f==='reason'&&DRAFT.has(t)){                        // the reason completes the entry: now it is recorded and saved
+    if(!v) return;
+    if(apply(t,{s:'not',n:1,fid:'',reason:v,note:''})){ DRAFT.delete(t); render();
+      toast(`${t[0]==='G'?'Buckets '+targets(t).map(x=>x.id).join(', '):'Bucket '+t.slice(1)}: ${STATUS.not}`);
+      const nb=document.querySelector(`[data-t="${t}"] input[data-f=note]`); nb&&nb.focus(); }
+    else render();
+    return; }
+  if(f==='reason'&&!v){ e.target.value=ent(targets(t)[0].id).reason||''; toast('A reason is needed. Use Reset to remove the entry.'); return; }
+  if(f==='note'&&!ent(targets(t)[0].id).reason){ e.target.value=''; return; }
+  if(!apply(t,{[f]:v})){ if(f==='reason') render(); return; }
+  if(f==='reason'){ const nb=panel.querySelector('input[data-f=note]');
+    if(nb){ nb.disabled=!v; nb.placeholder=v?'Remarks (optional)':'Remarks – select a reason first'; if(!v) nb.value=''; } }
   const st=panel.querySelector('.stamp'); if(st) st.innerHTML=stampText(ent(targets(t)[0].id));
   // refresh hints in the same group without rebuilding the field being edited
   const id=targets(t)[0].id, b=BY.get(id);

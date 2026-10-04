@@ -12,7 +12,7 @@
 const VILLAGE = "Shadipora";   // village name – must match the village registered in the admin page
 const TEHSIL = "Sumbal";     // tehsil – must match too
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby5STKAh0QGza6oGW5hXqZZp2kzst_nxchZzSskZ7mOUk-TTVR6aH7Qw7VAjr3LFZ29Ag/exec";  // paste the Apps Script /exec URL to save to Google Sheets
-let REASONS = [];                // filled from the 'Reasons' tab of the Google Sheet after login
+let REASONS = [];                // filled from the 'Reasons' tab of the Google Sheet when the page loads
 </script>
 <style>
 :root{
@@ -91,6 +91,7 @@ main{padding-top:14px}
 .bk.filled{border-color:var(--card-line)}
 .info{padding:14px 16px;min-width:0}
 .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.uid{margin-top:2px;font-size:11px;color:var(--ink-3);font-family:ui-monospace,Consolas,monospace;word-break:break-all}
 .bid{font-weight:600;font-variant-numeric:tabular-nums;background:var(--ink);color:var(--paper);border-radius:6px;padding:2px 9px;font-size:14px}
 .nm{font-weight:600;font-size:16px}
 .par{color:var(--ink-2);font-size:14px}
@@ -131,6 +132,10 @@ main{padding-top:14px}
 .sbtn.on.gen{background:var(--field);border-color:var(--field);color:#fff}
 .sbtn.on.not{background:var(--brick);border-color:var(--brick);color:#fff}
 .entry input,.entry select{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:7px 10px;font-size:14px}
+.entry select.need{border-color:var(--brick);border-width:2px}
+.needmsg{font-size:13px;color:var(--brick);margin-top:6px;font-weight:500}
+.entry.draft{border-style:dashed}
+.entry input:disabled{opacity:.55;cursor:not-allowed;background:var(--line-2)}
 .entry input.fid{font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .use{font-size:13px;color:var(--orange)}
 .use button{border:1px solid var(--orange);background:none;color:var(--orange);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px;margin-left:4px}
@@ -158,7 +163,10 @@ details.cat{border-top:1px solid var(--line-2);padding:6px 0}
 details.cat summary{cursor:pointer;font-size:14px}
 .acct{font-size:14px;color:var(--ink-2)}
 .acct b{color:var(--ink)}
-.login{position:fixed;inset:0;z-index:50;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:20px}
+.lk{font-size:14px;font-weight:600}.lk.on{color:var(--field)}
+.nm-l{margin-left:10px;font-size:14px;color:var(--ink-2)}
+.nm-i{border:1px solid var(--line);border-radius:7px;padding:5px 9px;background:var(--card);width:170px;font-size:14px}
+.login{position:fixed;inset:0;z-index:50;background:rgba(20,26,31,.45);display:flex;align-items:center;justify-content:center;padding:20px}
 .login[hidden]{display:none}
 .lbox{width:100%;max-width:360px;background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:26px 24px;box-shadow:0 4px 24px rgba(20,30,40,.08)}
 .lbox h2{font:600 24px/1.2 "IBM Plex Serif",Georgia,serif;margin:0}
@@ -216,7 +224,7 @@ footer{color:var(--ink-3);font-size:13px;padding:10px 0 40px}
   </div>
   <div class="stats" id="stats"></div>
   <div class="bigbar" id="bigbar"></div>
-  <div class="legend"><span><i style="background:var(--field)"></i>Buckets claimed</span><span><i style="background:var(--line)"></i>Buckets not claimed</span><span><i style="background:var(--orange)"></i>Same person in more than one bucket</span></div>
+  <div class="legend"><span><i style="background:var(--field)"></i>Buckets claimed</span><span><i style="background:var(--line)"></i>Buckets not claimed</span><span><i style="background:var(--orange)"></i>Check if same person in more than one bucket</span></div>
 </header>
 
 <div class="bar"><div class="wrap">
@@ -233,15 +241,14 @@ footer{color:var(--ink-3);font-size:13px;padding:10px 0 40px}
 <main class="wrap"><div id="list"></div></main>
 <footer class="wrap">Record for every bucket whether a Farmer ID has been generated. Buckets in an orange block appear to belong to one person: choose "One Farmer ID for all" to record them together, so they count as one Farmer ID. A red note means one bucket may hold more than one person. Nothing has been merged on the portal.</footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div class="login" id="login" hidden>
-  <form class="lbox" id="lform" autocomplete="on">
-    <h2>Farmer ID status</h2>
-    <p class="lsub" id="lsub"></p>
-    <label for="lu">Username</label><input id="lu" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-    <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
-    <button class="lbtn" id="lbtn" type="submit">Log in</button>
-    <p class="lerr" id="lerr" role="alert"></p>
-    <button type="button" class="lview" id="lview">Just view – no login</button>
+<div class="login" id="pinbox" hidden>
+  <form class="lbox" id="pform" autocomplete="off">
+    <h2>Enter PIN</h2>
+    <p class="lsub">Enter the PIN to make or change entries.</p>
+    <label for="pin">PIN</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" required>
+    <button class="lbtn" id="pbtn" type="submit">Start editing</button>
+    <p class="lerr" id="perr" role="alert"></p>
+    <button type="button" class="lview" id="pcancel">Cancel – just view</button>
   </form>
 </div>
 <dialog id="miscDlg" aria-labelledby="miscTitle"><div class="dlg">
@@ -254,11 +261,13 @@ const DATA = {"buckets":[{"id":1,"st":2,"v":[["Abdul Raheem","Gani",2,["763/361"
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const BY=new Map(DATA.buckets.map(b=>[b.id,b]));
+const UIDS=new Map(DATA.buckets.map(b=>[String(b.u??b.id),b.id]));      // real bucket ID (as saved in the sheet) → number on this page
+const idOf=v=>UIDS.get(String(v).trim());
 const GR=new Map(DATA.groups.map(g=>[g.id,g]));
 const STATUS={gen:'Generated',not:'Not generated'};
 const plotsOf=b=>b.v.reduce((a,v)=>a+v[2],0);
 const kmsP=k=>k.replace(/K-/,' K ').replace(/M-/,' M ').replace(/S$/,' S');
-const STORE='farmerIdByBucket:'+VILLAGE;
+const STORE='farmerIdByBucket:'+VILLAGE+(DATA.buckets[0]&&DATA.buckets[0].u?':'+DATA.buckets.length+':'+DATA.buckets[0].u:'');
 const dropRemark=r=>(r||'').split('; ').filter(x=>x&&!/survey no/i.test(x)).join('; ');
 
 /* E: 'B<id>' -> bucket entry {s,fid,reason,note,n,shared,by,at,synced}; 'G<id>' -> {mode:'one'|'sep'} */
@@ -303,7 +312,7 @@ function stats(){
 /* ---------- read-only guidance ---------- */
 function guidance(b,inGroup){
   const out=[];
-  if(b.g&&!inGroup){const g=GR.get(b.g);out.push(`<div class="guide link">Same person as bucket ${g.b.filter(x=>x!==b.id).join(', ')}.</div>`);}
+  if(b.g&&!inGroup){const g=GR.get(b.g);out.push(`<div class="guide link">Check if same person as bucket ${g.b.filter(x=>x!==b.id).join(', ')}?</div>`);}
   if(b.st===3) out.push(`<div class="guide warn">This bucket may hold more than one person. Plots are recorded as:<ul>${b.v.map(v=>`<li>${esc(v[0])} / ${esc(v[1])} (${v[2]} plot${v[2]>1?'s':''})</li>`).join('')}</ul>Check before marking the whole bucket.</div>`);
   else if(b.st>0) out.push(`<div class="guide soft">Also written as ${b.v.slice(1).map(v=>esc(v[0])+' / '+esc(v[1])).join('; ')}. Same person, written differently.</div>`);
   const r=dropRemark(b.r); if(r) out.push(`<div class="guide soft">${esc(r)}</div>`);
@@ -322,18 +331,24 @@ function linkedIdHint(b){
 }
 
 /* entry panel: target is 'B<id>' (one bucket) or 'G<id>' (one ID for a whole group) */
+/* REASON_BEFORE_SAVE: pressing "Not generated" records nothing by itself. The entry is made, counted and
+   saved only when a reason is chosen. Until then the box is a draft kept on this screen only. */
+const DRAFT=new Set();
 function entryPanel(target,e,opts={}){
-  const s=e.s||'';
-  return `<div class="entry ${s?'s-'+s:''}" data-t="${target}">
-    <div class="elabel">Farmer ID status <span>${s?'recorded':'enter here'}</span></div>
+  const draft=DRAFT.has(target), s=draft?'not':(e.s||'');
+  if(draft) e={...e,reason:'',note:'',_was:e.s};
+  const need=s==='not'&&!e.reason;
+  return `<div class="entry ${s?'s-'+s:''} ${draft?'draft':''}" data-t="${target}">
+    <div class="elabel">Farmer ID status <span>${draft?'not recorded yet':s?'recorded':'enter here'}</span></div>
     <div class="seg" role="group" aria-label="Farmer ID status">
       <button class="sbtn gen ${s==='gen'?'on':''}" data-s="gen" aria-pressed="${s==='gen'}">Generated</button>
       <button class="sbtn not ${s==='not'?'on':''}" data-s="not" aria-pressed="${s==='not'}">Not generated</button>
       <button class="rbtn" data-reset="1" ${s||e.fid||e.note||e.reason?'':'disabled'} title="Remove this entry">Reset</button>
     </div>
-    ${s==='not'?`<select data-f="reason" required><option value="">Select reason…</option>${REASONS.map(r=>`<option ${e.reason===r?'selected':''}>${esc(r)}</option>`).join('')}${e.reason&&!REASONS.includes(e.reason)?`<option value="${esc(e.reason)}" selected>${esc(e.reason)} (no longer on the list)</option>`:''}</select>`:''}
-    ${s==='not'?`<input data-f="note" placeholder="Remarks (optional)" value="${esc(e.note||'')}">`:''}
-    <div class="stamp">${stampText(e)}</div>
+    ${s==='not'?`<select data-f="reason" required class="${need?'need':''}"><option value="">Select reason…</option>${REASONS.map(r=>`<option ${e.reason===r?'selected':''}>${esc(r)}</option>`).join('')}${e.reason&&!REASONS.includes(e.reason)?`<option value="${esc(e.reason)}" selected>${esc(e.reason)} (no longer on the list)</option>`:''}</select>`:''}
+    ${s==='not'?`<input data-f="note" ${e.reason?'':'disabled'} placeholder="${e.reason?'Remarks (optional)':'Remarks – select a reason first'}" value="${esc(e.note||'')}">`:''}
+    ${need?`<div class="needmsg">${draft?'Choose a reason. The entry is recorded only after a reason is chosen.':'Reason missing. Choose a reason for this entry.'}</div>`:''}
+    <div class="stamp">${draft?(e._was==='gen'?'Still recorded as Generated until a reason is chosen.':''):stampText(e)}</div>
   </div>`;
 }
 function card(b,group){
@@ -348,7 +363,7 @@ function card(b,group){
   return `<article class="bk ${e.s?'filled':''} ${covered?'covered':''} ${kh.length?'match':''}" id="b${b.id}">
     <div class="info">
       <div class="top"><span class="bid">Bucket ${b.id}</span><span class="nm">${esc(b.v[0][0])}</span></div>
-      <div class="par">${esc(b.v[0][1])}</div>
+      <div class="par">${esc(b.v[0][1])}</div>${b.u?`<div class="uid">AgriStack bucket ID ${esc(b.u)}</div>`:''}
       <div class="kk">${pairs.map((p,n)=>`<div class="kr c${n%8}"><span class="kl">Khewat ${esc(p.kw)}, Khata ${esc(p.kt)}</span><span class="ks">${p.sv.map(x=>khs.has(x)?`<mark class="k">${esc(x)}</mark>`:cs.includes(x)?`<mark title="Shared with the other buckets of this person">${esc(x)}</mark>`:esc(x)).join(', ')}</span></div>`).join('')}</div>
       ${guidance(b,!!group)}${cov}
     </div>
@@ -366,7 +381,7 @@ function groupBlock(g,visible){
   const mode=gmode(g.id);
   const ids=g.b.map(x=>(ent(x).fid||'').trim()).filter(Boolean), clash=mode==='sep'&&new Set(ids).size>1;
   return `<section class="group ${g.c==='Medium'?'med':''}" id="g${g.id}">
-    <div class="ghead"><b>${g.c==='High'?'Same person':'Probably the same person'}</b> in buckets ${g.b.join(', ')}${g.cs.length?`, sharing khasra ${g.cs.map(esc).join(', ')}`:''}.${g.c==='Medium'?' Spelling differs; confirm before using one ID.':''}</div>
+    <div class="ghead"><b>Check if same person</b> in buckets ${g.b.join(', ')}?${g.cs.length?` They share khasra ${g.cs.map(esc).join(', ')}.`:''}${g.c==='Medium'?' Spelling differs.':''}</div>
     <div class="gmode" role="group" aria-label="How was the Farmer ID generated"><span>Farmer ID:</span>
       <button class="mbtn ${mode==='one'?'on':''}" data-mode="one" data-g="${g.id}" aria-pressed="${mode==='one'}">One Farmer ID for all ${g.b.length}</button>
       <button class="mbtn ${mode==='sep'?'on':''}" data-mode="sep" data-g="${g.id}" aria-pressed="${mode==='sep'}">Record each bucket separately</button></div>
@@ -379,7 +394,7 @@ function groupBlock(g,visible){
 /* ---------- list ---------- */
 let filter='all', q='', mode='khasra', shown=60;
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
-const NAMETXT=new Map(DATA.buckets.map(b=>[b.id,norm(b.v.map(v=>v[0]+' '+v[1]).join(' '))]));
+const NAMETXT=new Map(DATA.buckets.map(b=>[b.id,norm(b.v.map(v=>v[0]+' '+v[1]).join(' ')+(b.u?' '+b.u:''))]));
 /* ---- khasra search ----
    Khasra numbers are written many ways: "643/151", "643 / 151", "30 alif", "24min".
    Typing 643 finds 643 and every 643/... ; typing 151 also finds .../151 ; typing 643/151 finds exactly that.
@@ -421,7 +436,7 @@ const FILTERS=[
   ['gen','Generated',b=>ent(b.id).s==='gen'],
   ['not','Not generated',b=>ent(b.id).s==='not'],
   ['nor','Not generated, no reason',b=>ent(b.id).s==='not'&&!ent(b.id).reason],
-  ['linked','Same person in other buckets',b=>!!b.g],
+  ['linked','Check if same person',b=>!!b.g],
   ['mixed','May hold more than one person',b=>b.st===3],
 ];
 const UNITS=[]; {const seen=new Set();
@@ -460,7 +475,7 @@ document.querySelector('.smode').addEventListener('click',e=>{const b=e.target.c
 $('#q').placeholder=PH.khasra;
 
 /* ---------- editing ---------- */
-function who(){ if(!SESSION){showLogin('Log in to record entries'); return '';} return SESSION.username; }
+function who(){ if(APPS_SCRIPT_URL&&!PIN){ askPin(); return ''; } return SESSION.username; }
 function targets(t){ // bucket ids affected by an entry panel
   if(t[0]==='G'){const g=GR.get(+t.slice(1)); return g.b.map(id=>({id,shared:g.id}));}
   return [{id:+t.slice(1),shared:0}];
@@ -477,7 +492,7 @@ $('#list').addEventListener('click',e=>{
   if(e.target.id==='more'){shown+=60; render(); return;}
   const mb=e.target.closest('.mbtn');
   if(mb){ const gid=+mb.dataset.g, mode=mb.dataset.mode, g=GR.get(gid);
-    if(gmode(gid)===mode) return; if(!who()) return;
+    if(gmode(gid)===mode) return; if(!who()) return; DRAFT.clear();
     if(mode==='one'){
       const filled=g.b.map(ent).filter(x=>x.s);
       const differ=new Set(filled.map(x=>x.s+'|'+(x.fid||'')+'|'+(x.reason||''))).size>1;
@@ -492,12 +507,18 @@ $('#list').addEventListener('click',e=>{
     persist(); render(); toast(mode==='one'?`Buckets ${g.b.join(', ')} now share one Farmer ID`:'Each bucket recorded separately'); return;}
   const panel=e.target.closest('.entry'); if(!panel) return; const t=panel.dataset.t;
   const sb=e.target.closest('.sbtn');
-  if(sb){ const s=sb.dataset.s; const cur=t[0]==='G'?ent(GR.get(+t.slice(1)).b[0]):ent(+t.slice(1)); if(cur.s===s) return;
+  if(sb){ const s=sb.dataset.s; const cur=t[0]==='G'?ent(GR.get(+t.slice(1)).b[0]):ent(+t.slice(1));
+    if(s==='not'){                                       // nothing is recorded yet: first a reason must be chosen
+      if(DRAFT.has(t)||cur.s==='not') return; if(!who()) return;
+      DRAFT.add(t); render(); const sel=document.querySelector(`[data-t="${t}"] select[data-f=reason]`); sel&&sel.focus(); return; }
+    if(DRAFT.has(t)){ DRAFT.delete(t); if(cur.s===s){ render(); return; } }
+    if(cur.s===s) return;
     if(apply(t,{s,n:1,fid:'',...(s==='gen'?{reason:'',note:''}:{})})){render(); toast(`${t[0]==='G'?'Buckets '+targets(t).map(x=>x.id).join(', '):'Bucket '+t.slice(1)}: ${STATUS[s]}`);
       const next=document.querySelector(`[data-t="${t}"] select[data-f=reason]`); next&&next.focus();}
     return;}
   if(e.target.dataset.use){ if(apply(t,{fid:e.target.dataset.use})){render(); toast('Same Farmer ID applied');} return;}
   if(e.target.closest('[data-reset]')){
+    if(DRAFT.has(t)){ DRAFT.delete(t); render(); return; }          // a draft is simply dropped; nothing was recorded
     const ids=targets(t).map(x=>x.id);
     if(!confirm(ids.length>1?`Remove the entry for buckets ${ids.join(', ')}?`:`Remove the entry for bucket ${ids[0]}?`)) return;
     if(apply(t,{s:'',fid:'',reason:'',note:'',n:1})){render(); toast(ids.length>1?`Buckets ${ids.join(', ')} reset`:`Bucket ${ids[0]} reset`);} }
@@ -506,7 +527,19 @@ $('#list').addEventListener('change',e=>{
   const panel=e.target.closest('.entry'); if(!panel||!e.target.dataset.f) return;
   const t=panel.dataset.t, f=e.target.dataset.f;
   let v=e.target.value.trim(); if(f==='fid'){v=v.toUpperCase(); e.target.value=v;} if(f==='n') v=+v;
-  if(!apply(t,{[f]:v})) return;
+  const REMARKS_NEED_REASON=true;                       // remarks can be typed only after a reason is chosen
+  if(f==='reason'&&DRAFT.has(t)){                        // the reason completes the entry: now it is recorded and saved
+    if(!v) return;
+    if(apply(t,{s:'not',n:1,fid:'',reason:v,note:''})){ DRAFT.delete(t); render();
+      toast(`${t[0]==='G'?'Buckets '+targets(t).map(x=>x.id).join(', '):'Bucket '+t.slice(1)}: ${STATUS.not}`);
+      const nb=document.querySelector(`[data-t="${t}"] input[data-f=note]`); nb&&nb.focus(); }
+    else render();
+    return; }
+  if(f==='reason'&&!v){ e.target.value=ent(targets(t)[0].id).reason||''; toast('A reason is needed. Use Reset to remove the entry.'); return; }
+  if(f==='note'&&!ent(targets(t)[0].id).reason){ e.target.value=''; return; }
+  if(!apply(t,{[f]:v})){ if(f==='reason') render(); return; }
+  if(f==='reason'){ const nb=panel.querySelector('input[data-f=note]');
+    if(nb){ nb.disabled=!v; nb.placeholder=v?'Remarks (optional)':'Remarks – select a reason first'; if(!v) nb.value=''; } }
   const st=panel.querySelector('.stamp'); if(st) st.innerHTML=stampText(ent(targets(t)[0].id));
   // refresh hints in the same group without rebuilding the field being edited
   const id=targets(t)[0].id, b=BY.get(id);
@@ -519,10 +552,10 @@ function toast(t){const el=$('#toast'); el.textContent=t; el.classList.add('show
 function rowFor(id){
   const b=BY.get(id), e=ent(id);
   let guide='';
-  if(b.g){const g=GR.get(b.g); guide=`${g.c==='High'?'Same person':'Probably same person'} as bucket ${g.b.filter(x=>x!==id).join(', ')}`;}
+  if(b.g){const g=GR.get(b.g); guide=`Check if same person as bucket ${g.b.filter(x=>x!==id).join(', ')}`;}
   if(b.st===3) guide+=(guide?'; ':'')+'May hold more than one person';
   const shared=e.shared?GR.get(e.shared).b:[];
-  return {village:VILLAGE,bucket_id:id,owner:b.v[0][0],parentage:b.v[0][1],
+  return {village:VILLAGE,bucket_id:b.u??id,owner:b.v[0][0],parentage:b.v[0][1],
     other_names:b.v.slice(1).map(v=>v[0]+' / '+v[1]).join(' | '),plots:plotsOf(b),
     survey_nos:[...new Set(b.v.flatMap(v=>v[3]))].join(', '),
     khewat_nos:[...new Set(b.v.flatMap(v=>v[7]))].join(', '),khata_nos:[...new Set(b.v.flatMap(v=>v[8]))].join(', '),area_ha:b.e,group:b.g||'',guidance:guide,
@@ -533,62 +566,64 @@ function rowFor(id){
     submitted_by:e.s||e.note?e.by||'':'',submitted_at:e.at?new Date(e.at).toISOString():''};
 }
 
-/* ---------- login and server calls ---------- */
-const SKEY='farmerIdSession:'+TEHSIL+':'+VILLAGE;
+/* ---------- server calls (open entry: no username or password) ---------- */
 try{REASONS=JSON.parse(localStorage.getItem('farmerIdReasons')||'[]')}catch(e){}
 function setReasons(list){ if(!Array.isArray(list)) return; REASONS=list; try{localStorage.setItem('farmerIdReasons',JSON.stringify(list))}catch(e){} }
-let SESSION=null;
-try{SESSION=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){}
-const keyN=s=>String(s||'').trim().toLowerCase();
+const NKEY='farmerIdName';
+let NAME=''; try{NAME=localStorage.getItem(NKEY)||''}catch(e){}
+const SESSION={get username(){return NAME||'Public';}};      // the optional name is saved with each entry
+/* Viewing is open to all. Entering or changing data needs the common edit PIN.
+   The PIN is kept only while this page is open: it is asked again whenever the page is opened or reloaded. */
+const PIN_KEPT='page-only';
+let PIN=''; try{ localStorage.removeItem('farmerIdPin'); sessionStorage.removeItem('farmerIdPin'); }catch(e){}   // forget a PIN remembered by an earlier version
+let lastBtn=null;
+document.addEventListener('click',e=>{ const b=e.target.closest('#list button'); if(b) lastBtn=b; },true);
 async function api(action,payload={}){
-  const r=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:SESSION&&SESSION.token,...payload})});
+  const r=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,village:VILLAGE,tehsil:TEHSIL,name:NAME,pin:PIN,...payload})});
   const j=await r.json();
-  if(!j.ok){ const e=new Error(j.error||'Request failed'); e.auth=!!j.auth; if(e.auth){ clearSession(); showLogin(j.error); } throw e; }
+  if(!j.ok){ const e=new Error(j.error||'Request failed'); e.pin=!!j.pin; if(e.pin){ setPin(''); askPin(j.error); } throw e; }
   return j;
 }
-function clearSession(){SESSION=null; try{localStorage.removeItem(SKEY)}catch(e){} setAcct();}
-function setAcct(){
-  $('#acct').innerHTML=SESSION&&APPS_SCRIPT_URL?`Logged in as <b>${esc(SESSION.username)}</b> <button class="linkbtn" id="logout">Log out</button>`:(APPS_SCRIPT_URL?`<button class="loginbtn" id="loginbtn">Log in to enter data</button>`:'Not connected to Google Sheets – entries stay on this device');
-}
-function showLogin(msg){ $('#lsub').textContent=`${VILLAGE}${TEHSIL?', Tehsil '+TEHSIL:''}`; $('#lerr').textContent=msg||''; $('#login').hidden=false; setTimeout(()=>$('#lu').focus(),50); }
-$('#lform').addEventListener('submit',async e=>{
-  e.preventDefault(); $('#lbtn').disabled=true; $('#lerr').textContent='';
+function setPin(p){ PIN=p; setAcct(); }
+function askPin(msg){ $('#perr').textContent=msg||''; $('#pinbox').hidden=false; $('#pin').value=''; setTimeout(()=>$('#pin').focus(),50); }
+$('#pform').addEventListener('submit',async e=>{
+  e.preventDefault(); const p=$('#pin').value.trim(); if(!p) return;
+  $('#pbtn').disabled=true; $('#perr').textContent='';
   try{
-    const j=await api('login',{username:$('#lu').value.trim(),password:$('#lp').value});
-    if(j.role!=='village'){ throw new Error('This is an admin login. Use the village login on this page.'); }
-    if(keyN(j.village)!==keyN(VILLAGE)||(TEHSIL&&keyN(j.tehsil)!==keyN(TEHSIL))){ api('logout',{token:j.token}).catch(()=>{}); throw new Error(`This login is for ${j.village} (${j.tehsil}), not ${VILLAGE}.`); }
-    SESSION={token:j.token,username:j.username,village:j.village,tehsil:j.tehsil};
-    try{localStorage.setItem(SKEY,JSON.stringify(SESSION))}catch(_){}
-    $('#lp').value=''; $('#login').hidden=true; setAcct();
-    api('villageMeta',{total_buckets:DATA.buckets.length,groups:DATA.groups.length}).catch(()=>{});
-    await load(); if(pending.size) flush();
-  }catch(err){ $('#lerr').textContent=err.message; }
-  finally{ $('#lbtn').disabled=false; }
+    PIN=p; await api('checkPin');
+    setPin(p); $('#pinbox').hidden=true; toast('Editing mode on');
+    if(pending.size) flush();
+    const b=lastBtn; lastBtn=null; if(b&&document.body.contains(b)) b.click();
+  }catch(err){ PIN=''; $('#perr').textContent=err.pin?'Wrong PIN':err.message; $('#pin').select(); }
+  finally{ $('#pbtn').disabled=false; }
 });
-document.addEventListener('click',async e=>{
-  if(e.target.id==='loginbtn'){ showLogin(); return; }
-  if(e.target.id==='lview'){ $('#login').hidden=true; return; }
-  if(e.target.id!=='logout') return;
-  if(pending.size&&!confirm('Some entries are not saved yet. Log out anyway? They will be sent after the next login.')) return;
-  const tk=SESSION&&SESSION.token; clearSession(); if(tk) api('logout',{token:tk}).catch(()=>{}); setSync(); toast('Logged out – view only'); });
+$('#pcancel').addEventListener('click',()=>{ $('#pinbox').hidden=true; lastBtn=null; });
+function setAcct(){
+  $('#acct').innerHTML=APPS_SCRIPT_URL?(PIN?`<span class="lk on">Editing mode</span> <button class="linkbtn" id="lock">Exit editing</button> <label class="nm-l" for="myname">Your name</label> <input class="nm-i" id="myname" placeholder="optional" value="${esc(NAME)}" autocomplete="name">`:''):'Not connected to Google Sheets – entries stay on this device';
+}
+document.addEventListener('click',e=>{
+  if(e.target.id==='lock'){ if(pending.size&&!confirm('Some entries are not saved yet. Exit editing anyway? They will be sent after the PIN is entered again.')) return; setPin(''); setSync(); toast('Editing mode off – view only'); }
+});
+document.addEventListener('change',e=>{ if(e.target.id!=='myname') return; NAME=e.target.value.trim().slice(0,40); try{localStorage.setItem(NKEY,NAME)}catch(_){} });
 
 /* ---------- Google Sheets sync ---------- */
 const pending=new Set(Object.keys(E).filter(k=>k[0]==='B'&&!E[k].synced).map(k=>+k.slice(1)));
 let timer=null, busy=false;
 function queue(id){pending.add(id); setSync(); clearTimeout(timer); timer=setTimeout(flush,1200);}
 async function flush(){
-  if(!APPS_SCRIPT_URL||busy||!pending.size||!SESSION) return setSync();
+  if(!APPS_SCRIPT_URL||busy||!pending.size||!PIN) return setSync();
   busy=true; setSync('busy');
   const ids=[...pending].slice(0,25);
   try{
-    await api('save',{items:ids.map(rowFor)});
+    await api('openSave',{items:ids.map(rowFor)});
     ids.forEach(id=>{pending.delete(id); if(E['B'+id]) E['B'+id].synced=true; const st=document.querySelector(`[data-t="B${id}"] .stamp`); if(st) st.innerHTML=stampText(ent(id));});
     persist(); busy=false; setSync(); if(pending.size) flush();
-  }catch(err){busy=false; setSync('err',err.auth?'log in again':err.message); if(!err.auth){clearTimeout(timer); timer=setTimeout(flush,8000);}}
+  }catch(err){busy=false; if(err.pin){ setSync(); return; } setSync('err',err.message); clearTimeout(timer); timer=setTimeout(flush,8000);}
 }
 function setSync(state,msg){
   const el=$('#sync'), t=el.querySelector('span'); el.className='sync';
   if(!APPS_SCRIPT_URL){t.textContent='Saved on this device only'; return;}
+  if(!PIN&&state!=='busy'&&state!=='err'){ t.textContent=pending.size?`${pending.size} waiting – enter the PIN to save`:'View only. Tap Generated or Not generated on a bucket to edit.'; return; }
   if(!SESSION){ if(state==='err'){el.classList.add('err'); t.textContent=`Could not load entries (${msg})`;} else if(state==='busy'){el.classList.add('busy'); t.textContent='Loading entries…';} else t.textContent='View only. Log in to enter data.'; return; }
   if(state==='busy'){el.classList.add('busy'); t.textContent='Saving to Google Sheet…'; return;}
   if(state==='err'){el.classList.add('err'); t.textContent=`Not saved (${msg}). Retrying.`; return;}
@@ -599,14 +634,14 @@ async function load(){
   if(!APPS_SCRIPT_URL) return;
   setSync('busy');
   try{
-    const j=SESSION?await api('list'):await api('publicList',{village:VILLAGE,tehsil:TEHSIL});
-    const seen=new Set(j.items.filter(it=>it.status).map(it=>+it.bucket_id));
+    const j=await api('openList');
+    const seen=new Set(j.items.filter(it=>it.status).map(it=>idOf(it.bucket_id)));
     // entries cleared elsewhere: drop saved local copies that the sheet no longer has
     for(const k of Object.keys(E)) if(k[0]==='B'&&E[k].synced&&E[k].s&&!seen.has(+k.slice(1))) E[k]={...E[k],s:'',reason:'',note:'',fid:'',shared:0};
     setReasons(j.reasons);
     const rev={'Claimed':'gen','Not claimed':'not','Generated':'gen','Not generated':'not'};
     for(const it of j.items){
-      const id=+it.bucket_id, at=Date.parse(it.submitted_at)||0, loc=E['B'+id];
+      const id=idOf(it.bucket_id); if(id===undefined) continue; const at=Date.parse(it.submitted_at)||0, loc=E['B'+id];
       if(loc&&!loc.synced&&(loc.at||0)>at) continue;
       const b=BY.get(id); if(!b) continue;
       const shared=/^One ID for buckets/.test(it.id_basis||'')?b.g:0;
@@ -651,9 +686,7 @@ $('#misc').addEventListener('click',()=>{$('#miscBody').innerHTML=miscHtml(); $(
 $('#miscClose').addEventListener('click',()=>$('#miscDlg').close());
 $('#miscDlg').addEventListener('click',e=>{if(e.target.id==='miscDlg') $('#miscDlg').close();});
 
-if(!APPS_SCRIPT_URL){ SESSION={username:'this device'}; setAcct(); render(); setSync(); }
-else if(SESSION&&SESSION.token){ setAcct(); render(); setSync(); load(); }
-else { setAcct(); render(); setSync(); load(); }
+setAcct(); render(); setSync(); if(APPS_SCRIPT_URL) load();
 </script>
 </body>
 </html>
