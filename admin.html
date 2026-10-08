@@ -97,6 +97,12 @@ h3.rt{font-size:14px;margin:18px 0 6px}
 .msg .btn{margin-left:8px}
 #stray .msg{margin:0 0 16px}
 .rep{margin:10px 0 0;padding:0;list-style:none;font-size:14px}
+.cbox{border-radius:10px;padding:12px 14px;margin-top:12px;border:1px solid var(--line)}
+.cbox .cn{display:flex;flex-wrap:wrap;gap:6px 22px;margin:4px 0 8px}
+.cbox .cn b{font-size:22px;font-variant-numeric:tabular-nums;display:block;line-height:1.1}
+.cbox .cn span{font-size:13px;color:var(--ink-2)}
+.cbox ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2);max-height:220px;overflow:auto}
+.cl-g{color:var(--field)} .cl-r{color:var(--brick)}
 .rep li{padding:7px 0;border-bottom:1px solid var(--line-2)} .rep li:last-child{border-bottom:0}
 .msg code{font-size:15px;background:var(--card);padding:1px 6px;border-radius:4px}
 .tgroup{margin-top:14px}
@@ -159,6 +165,7 @@ footer{font-size:13px;color:var(--ink-3);text-align:center;padding:10px 0 30px}
     <button class="tab" role="tab" data-tab="vill" aria-selected="false">Villages</button>
     <button class="tab" role="tab" data-tab="ana" aria-selected="false">Analysis</button>
     <button class="tab" role="tab" data-tab="rsn" aria-selected="false">Reasons</button>
+    <button class="tab" role="tab" data-tab="clm" aria-selected="false">AgriStack status</button>
     <button class="tab" role="tab" data-tab="set" aria-selected="false">Settings</button>
   </div>
 
@@ -227,6 +234,21 @@ footer{font-size:13px;color:var(--ink-3);text-align:center;padding:10px 0 30px}
       <div id="rmsg"></div>
     </div>
     <div class="card"><h2>Current reasons <small id="rcount"></small></h2><div id="rlist"></div></div>
+  </section>
+
+  <!-- ============ AGRISTACK STATUS ============ -->
+  <section class="panel" id="p-clm" hidden>
+    <p class="lead">Upload the “Buckets UnClaimed” report downloaded from AgriStack for a village. Each bucket on that village's page then shows whether AgriStack has it as claimed (green) or still unclaimed (light red). Until a report is uploaded, the page looks as before.</p>
+    <div class="card">
+      <h2>Upload an unclaimed-buckets report</h2>
+      <div class="form" id="cform">
+        <div><label for="c-tehsil">Tehsil</label><select class="in" id="c-tehsil"><option value="">Choose…</option></select></div>
+        <div><label for="c-village">Village</label><select class="in" id="c-village" disabled><option value="">Choose the tehsil first</option></select></div>
+        <div class="xl"><label for="c-xl">AgriStack report <span class="muted">(Buckets_UnClaimed_ReportDetails … .xlsx)</span></label><input class="in" type="file" id="c-xl" accept=".xlsx,.xls" disabled></div>
+      </div>
+      <div id="cprev"></div>
+    </div>
+    <div class="card"><h2>Villages with a report <small id="ccount"></small></h2><div id="clist"></div></div>
   </section>
 
   <!-- ============ SETTINGS ============ -->
@@ -341,8 +363,88 @@ async function refresh(){
   const opts=D.tehsils.map(t=>`<option>${esc(t)}</option>`).join('');
   $('#vt').innerHTML='<option value="">All tehsils</option>'+opts; $('#vt').value=tFilter;
   const keep=$('#f-tehsil').value; $('#f-tehsil').innerHTML='<option value="">Choose…</option>'+opts; $('#f-tehsil').value=keep;
-  $('#repcard').hidden=D.stray===undefined; renderStray(); renderDash(); renderVillages(); renderVillageList(); renderAnalysis(); renderReasonList();
+  $('#repcard').hidden=D.stray===undefined; renderStray(); renderDash(); renderClaims(); renderVillages(); renderVillageList(); renderAnalysis(); renderReasonList();
 }
+/* ---------------- AgriStack claimed / unclaimed status ---------------- */
+let CL=null;          // the report being checked: {village, tehsil, label, unclaimed:[bucket ids], ...}
+function renderClaims(){
+  const tehs=D.tehsils.filter(t=>D.villages.some(v=>v.tehsil===t&&v.total));
+  const keep=$('#c-tehsil').value;
+  $('#c-tehsil').innerHTML='<option value="">Choose…</option>'+tehs.map(t=>`<option>${esc(t)}</option>`).join(''); $('#c-tehsil').value=tehs.includes(keep)?keep:'';
+  fillClaimVillages();
+  const list=D.villages.filter(v=>v.claim_report).sort((a,b)=>a.tehsil.localeCompare(b.tehsil)||a.village.localeCompare(b.village));
+  $('#ccount').textContent=list.length?`${list.length}`:'';
+  $('#clist').innerHTML=list.length?`<div class="tw"><table><thead><tr><th class="l">Village</th><th class="l">Tehsil</th><th class="l">Report</th><th>Unclaimed</th><th>Claimed</th><th class="l"></th></tr></thead><tbody>${list.map(v=>`<tr data-v="${esc(v.village)}" data-t="${esc(v.tehsil)}"><td class="l"><b>${esc(v.village)}</b></td><td class="l">${esc(v.tehsil)}</td><td class="l muted">${esc(v.claim_report)}</td><td class="cl-r">${fmt(v.unclaimed)}</td><td class="cl-g">${fmt(Math.max(0,v.total-v.unclaimed))}</td><td class="l"><button class="btn sec sm" data-act="clear">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+    :'<p class="muted" style="margin:0">No report uploaded yet. Village pages show the normal view.</p>';
+}
+function fillClaimVillages(){
+  const t=$('#c-tehsil').value, keep=$('#c-village').value;
+  const vs=D.villages.filter(v=>v.tehsil===t&&v.total).sort((a,b)=>a.village.localeCompare(b.village));
+  $('#c-village').innerHTML=t?'<option value="">Choose…</option>'+vs.map(v=>`<option value="${esc(v.village)}">${esc(v.village)}${v.claim_report?' – report uploaded':''}</option>`).join(''):'<option value="">Choose the tehsil first</option>';
+  $('#c-village').disabled=!t; $('#c-village').value=vs.some(v=>v.village===keep)?keep:'';
+  $('#c-xl').disabled=!$('#c-village').value;
+}
+$('#c-tehsil').addEventListener('change',()=>{ fillClaimVillages(); $('#cprev').innerHTML=''; $('#c-xl').value=''; CL=null; });
+$('#c-village').addEventListener('change',()=>{ $('#c-xl').disabled=!$('#c-village').value; $('#cprev').innerHTML=''; $('#c-xl').value=''; CL=null; });
+/* names as AgriStack writes them in different files: Mohd = Mohammad, Gh = Ghulam, Mst/Masmat dropped, letters only */
+const nmz=s=>String(s??'').toLowerCase().replace(/\b(mohd|mohamad|mohammed|muhammad|mohmad|mohamamd|mohd\.)\b/g,'mohammad').replace(/\b(gh|gulam|golam)\b/g,'ghulam')
+  .replace(/\b(mst|msmt|masmat|musammat|musamat|musamati|musmati|smt|begum|bibi|late|marhoom)\b/g,' ').replace(/[^a-z]/g,'').replace(/q/g,'k').replace(/(.)\1+/g,'$1');
+const noPar=s=>/^(|na|nil|none|-+)$/i.test(String(s??'').trim().replace(/\./g,''));
+function reportDate(f){ const m=f.name.match(/1[6-9]\d{11}/); const d=m?new Date(+m[0]):new Date(f.lastModified||Date.now()); return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
+$('#c-xl').addEventListener('change',async()=>{
+  const f=$('#c-xl').files[0]; CL=null; if(!f) return;
+  const village=$('#c-village').value, tehsil=$('#c-tehsil').value;
+  $('#cprev').innerHTML='<div class="loading">Reading the report and this village’s buckets…</div>';
+  try{
+    if(typeof XLSX==='undefined') throw new Error('The Excel reader could not load. Check the internet connection and reload.');
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'}); let rows=null, H=null;
+    for(const n of wb.SheetNames){ const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''});
+      const h=a.findIndex(r=>r.map(x=>String(x).trim().toLowerCase()).includes('bucket id')&&r.map(x=>String(x).trim().toLowerCase()).includes('survey number'));
+      if(h>=0){ H=a[h].map(x=>String(x).trim().toLowerCase()); rows=a.slice(h+1).filter(r=>String(r[H.indexOf('bucket id')]).trim()); break; } }
+    if(!rows) throw new Error('This is not the AgriStack unclaimed-buckets report: no “Bucket ID” and “Survey Number” columns were found.');
+    const col=n=>H.indexOf(n), ci={id:col('bucket id'),code:col('village lgd code'),vn:col('village name'),sv:col('survey number'),nm:col('farmer name'),par:col('identifier name')};
+    const R=rows.map(r=>({id:String(r[ci.id]).trim(),vn:ci.vn>=0?String(r[ci.vn]).trim():'',code:ci.code>=0?String(r[ci.code]).trim():'',sv:String(r[ci.sv]).trim(),nm:ci.nm>=0?r[ci.nm]:'',par:ci.par>=0?r[ci.par]:''}));
+    const j=await api('adminClaimBuckets',{tehsil,village}), B=j.buckets;
+    const rIds=new Set(R.map(r=>r.id)), sIds=new Set(B.map(b=>b[0]));
+    const byId=[...rIds].filter(x=>sIds.has(x)).length;
+    const un=new Set(), lost=new Map();          // lost: report buckets that fit no bucket of this village
+    let how;
+    if(byId>=rIds.size*0.5){                     // the village's buckets carry AgriStack's own Bucket IDs
+      how='by AgriStack Bucket ID';
+      rIds.forEach(x=>{ if(sIds.has(x)) un.add(x); });
+      R.forEach(r=>{ if(!sIds.has(r.id)) lost.set(r.id,r); });
+    }else{                                       // the buckets were made from the AgriStack file: same survey number and same person
+      how='by survey number and name (this village’s buckets were made from the AgriStack file)';
+      const idx=new Map();                       // survey number -> [bucket, person variants]
+      B.forEach(b=>{ const vars=[[b[1],b[2]]].concat(String(b[3]||'').split(' | ').filter(Boolean).map(x=>x.split(' / ')));
+        String(b[4]).split(',').map(x=>x.trim()).filter(Boolean).forEach(sv=>{ if(!idx.has(sv)) idx.set(sv,[]); idx.get(sv).push([b[0],vars]); }); });
+      const found=new Set();
+      R.forEach(r=>{ const n=nmz(r.nm), p=nmz(r.par), np=noPar(r.par);
+        (idx.get(r.sv)||[]).forEach(([id,vars])=>{ if(vars.some(([vn,vp])=>nmz(vn)===n&&(nmz(vp)===p||np||noPar(vp)))){ un.add(id); found.add(r.id); } }); });
+      R.forEach(r=>{ if(!found.has(r.id)&&!lost.has(r.id)) lost.set(r.id,r); });
+    }
+    const vnames=[...new Set(R.map(r=>r.vn).filter(Boolean))], k=x=>String(x).toLowerCase().replace(/[^a-z]/g,'');
+    const wrongVillage=vnames.length&&!vnames.some(n=>k(n)===k(village));
+    CL={tehsil,village,label:`${reportDate(f)} · ${f.name}`.slice(0,120),unclaimed:[...un]};
+    $('#cprev').innerHTML=`<div class="cbox">
+      ${wrongVillage?`<div class="msg err" style="margin:0 0 10px">This report is for <b>${esc(vnames.join(', '))}</b>${R[0].code?' (LGD '+esc(R[0].code)+')':''}, not ${esc(village)}. Check that the right file and village are chosen.</div>`:''}
+      <div class="muted" style="font-size:13px">Report of ${esc(reportDate(f))}: ${fmt(R.length)} rows, ${fmt(rIds.size)} unclaimed buckets in AgriStack${vnames.length?' for '+esc(vnames.join(', ')):''}. Matched ${how}.</div>
+      <div class="cn"><div><b>${fmt(B.length)}</b><span>buckets of ${esc(village)}</span></div><div class="cl-r"><b>${fmt(un.size)}</b><span>unclaimed</span></div><div class="cl-g"><b>${fmt(B.length-un.size)}</b><span>claimed</span></div></div>
+      ${lost.size?`<div class="msg warn" style="margin:0">${fmt(lost.size)} unclaimed bucket${lost.size===1?'':'s'} in the report could not be found among this village’s buckets:<ul>${[...lost.values()].slice(0,40).map(r=>`<li>${esc(r.nm)} / ${esc(r.par)} – survey ${esc(r.sv)}</li>`).join('')}${lost.size>40?`<li>and ${lost.size-40} more</li>`:''}</ul></div>`:'<div class="msg ok" style="margin:0">Every unclaimed bucket in the report was found in this village.</div>'}
+      <div class="btns" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${wrongVillage?`<label style="font-size:14px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="cforce"> Use it anyway</label>`:''}<button class="btn" id="csave" type="button" ${wrongVillage?'disabled':''}>Show on the ${esc(village)} page</button></div>
+    </div>`;
+  }catch(e){ $('#cprev').innerHTML=`<div class="msg err">${esc(e.message)}</div>`; }
+});
+document.addEventListener('change',e=>{ if(e.target.id==='cforce') $('#csave').disabled=!e.target.checked; });
+document.addEventListener('click',async e=>{
+  if(e.target.id==='csave'&&CL){ const b=e.target; b.disabled=true; b.textContent='Saving…';
+    try{ const j=await api('adminSaveClaims',CL); $('#cprev').innerHTML=`<div class="msg ok">${esc(CL.village)}: ${fmt(j.unclaimed)} unclaimed and ${fmt(j.claimed)} claimed buckets saved. The village page shows them from the next time it is opened.</div>`; $('#c-xl').value=''; CL=null; await refresh(); }
+    catch(err){ b.disabled=false; b.textContent='Try again'; toast(err.message); } }
+  const rm=e.target.closest('#clist button[data-act=clear]');
+  if(rm){ const tr=rm.closest('tr'); if(!confirm(`Remove the AgriStack status from ${tr.dataset.v}? Its page goes back to the normal view.`)) return;
+    try{ await api('adminClearClaims',{tehsil:tr.dataset.t,village:tr.dataset.v}); toast('Removed'); await refresh(); }catch(err){ toast(err.message); } }
+});
+
 /* ---------------- entries left in an earlier tab of the Google Sheet ---------------- */
 function renderStray(){
   const st=D.stray||[], names=[...new Set(st.map(x=>x.village))];
@@ -632,7 +734,7 @@ $('#pform').addEventListener('submit',async e=>{
 document.querySelector('.tabs').addEventListener('click',e=>{
   const t=e.target.closest('.tab'); if(!t) return;
   document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
-  ['dash','vill','ana','rsn','set'].forEach(k=>$('#p-'+k).hidden=k!==t.dataset.tab);
+  ['dash','vill','ana','rsn','clm','set'].forEach(k=>$('#p-'+k).hidden=k!==t.dataset.tab);
   if(t.dataset.tab==='set') loadPin();
 });
 if(!APPS_SCRIPT_URL){ document.body.insertAdjacentHTML('afterbegin','<div class="msg err" style="margin:12px">The portal link is not set in this file. Run admin.html through the portal page updater.</div>'); }
