@@ -132,7 +132,7 @@ main{padding-top:14px}
 .sbtn.on.gen{background:var(--field);border-color:var(--field);color:#fff}
 .sbtn.on.not{background:var(--brick);border-color:var(--brick);color:#fff}
 .entry input,.entry select{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:7px 10px;font-size:14px}
-.stat.ag b{color:var(--brick)}
+.stat.ag b{color:var(--field)}
 .side{display:flex;flex-direction:column;min-width:0}
 .claim{margin:10px 10px 0;border-radius:9px;padding:9px 13px;border:1.5px solid;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
 .claim .ct{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;width:100%;opacity:.8}
@@ -140,6 +140,8 @@ main{padding-top:14px}
 .claim small{font-size:12px;opacity:.8}
 .claim .cw{width:100%;font-size:13px;font-weight:600;margin-top:4px}
 .claim.cl{background:var(--field-bg);border-color:color-mix(in srgb,var(--field) 45%,transparent);color:var(--field)}
+.claim.pt{background:var(--amber-bg);border-color:color-mix(in srgb,var(--amber) 45%,transparent);color:var(--amber-ink,var(--amber))}
+.claim .cp{width:100%;font-size:13px}
 .claim.un{background:var(--brick-bg);border-color:color-mix(in srgb,var(--brick) 35%,transparent);color:var(--brick)}
 .info .claim{margin:10px 0 0}
 .entry select.need{border-color:var(--brick);border-width:2px}
@@ -317,8 +319,8 @@ function stats(){
     <div class="stat g"><b>${c.gen}</b><span>buckets claimed</span></div>
     <div class="stat n"><b>${notClaimed}</b><span>buckets not claimed</span><small>total − claimed</small></div>
     <div class="stat id"><b>${c.ids}</b><span>Farmer IDs generated</span><small>${c.gen?(diff>0?`${pl(c.gen,'bucket')} claimed by ${pl(c.ids,'ID')}: difference ${diff}, as ${pl(c.sharedB,'bucket')} share ${pl(c.sharedU,'ID')}`:`one ID per claimed bucket`):'&nbsp;'}</small></div>`;
-  if(CLAIM){ const u=DATA.buckets.filter(b=>CLAIM.un.has(b.id)).length;
-    $('#stats').insertAdjacentHTML('beforeend',`<div class="stat ag"><b>${u}</b><span>unclaimed in AgriStack</span><small>${c.T-u} claimed · report of ${esc(CLAIM.date)}</small></div>`); }
+  if(CLAIM){ const u=DATA.buckets.filter(b=>CLAIM.un.has(b.id)).length, p=DATA.buckets.filter(b=>CLAIM.part.has(b.id)).length;
+    $('#stats').insertAdjacentHTML('beforeend',`<div class="stat ag"><b>${c.T-u}</b><span>buckets claimed in AgriStack</span><small>${c.T-u-p} fully${p?` + ${p} partly`:''} · ${u} unclaimed · report of ${esc(CLAIM.date)}</small></div>`); }
   $('#bigbar').innerHTML=`<i style="width:${c.gen*100/c.T}%;background:var(--field)"></i>`;
 }
 /* ---------- read-only guidance ---------- */
@@ -367,17 +369,19 @@ function entryPanel(target,e,opts={}){
 let CLAIM=null;
 function setClaim(c){
   if(!c||!Array.isArray(c.unclaimed)){ CLAIM=null; return; }
-  CLAIM={date:String(c.report||'').split(' · ')[0],un:new Set(c.unclaimed.map(idOf).filter(x=>x!==undefined))};
+  const part=new Map(); Object.keys(c.partly||{}).forEach(k=>{ const id=idOf(k); if(id!==undefined) part.set(id,c.partly[k]); });
+  CLAIM={date:String(c.report||'').split(' · ')[0],un:new Set(c.unclaimed.map(idOf).filter(x=>x!==undefined)),part};
   if(!FILTERS.some(f=>f[0]==='unc')) FILTERS.push(
     ['unc','Unclaimed in AgriStack',b=>!!CLAIM&&CLAIM.un.has(b.id)],
-    ['clm','Claimed in AgriStack',b=>!!CLAIM&&!CLAIM.un.has(b.id)],
+    ['pcl','Partly claimed',b=>!!CLAIM&&CLAIM.part.has(b.id)],
+    ['clm','Claimed in AgriStack',b=>!!CLAIM&&!CLAIM.un.has(b.id)&&!CLAIM.part.has(b.id)],
     ['gunc','Generated here, unclaimed in AgriStack',b=>!!CLAIM&&CLAIM.un.has(b.id)&&ent(b.id).s==='gen']);
 }
 function claimBox(b,e){
   if(!CLAIM) return '';
-  const un=CLAIM.un.has(b.id);
-  const warn=un&&e.s==='gen'?'Recorded here as Generated, but this report still shows it unclaimed.':!un&&e.s==='not'?'Recorded here as Not generated, but AgriStack shows it claimed.':'';
-  return `<div class="claim ${un?'un':'cl'}"><span class="ct">AgriStack status</span><b>${un?'Unclaimed':'Claimed'}</b><small>as per the report of ${esc(CLAIM.date)}</small>${warn?`<div class="cw">${warn}</div>`:''}</div>`;
+  const un=CLAIM.un.has(b.id), pt=CLAIM.part.get(b.id);
+  const warn=un&&e.s==='gen'?'Recorded here as Generated, but this report still shows it unclaimed.':!un&&e.s==='not'?`Recorded here as Not generated, but AgriStack shows it ${pt?'partly ':''}claimed.`:'';
+  return `<div class="claim ${un?'un':pt?'pt':'cl'}"><span class="ct">AgriStack status</span><b>${un?'Unclaimed':pt?'Partly claimed':'Claimed'}</b><small>as per the report of ${esc(CLAIM.date)}</small>${pt?`<div class="cp">${pt[0]} of ${pt[1]} plots still unclaimed</div>`:''}${warn?`<div class="cw">${warn}</div>`:''}</div>`;
 }
 function card(b,group){
   const e=ent(b.id), covered=group&&gmode(group.id)==='one';
