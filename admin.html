@@ -248,7 +248,7 @@ footer{font-size:13px;color:var(--ink-3);text-align:center;padding:10px 0 30px}
       </div>
       <div id="cprev"></div>
     </div>
-    <div class="card"><h2>Villages with a report <small id="ccount"></small></h2><div id="clist"></div></div>
+    <div class="card"><h2>Villages with a report <small id="ccount"></small></h2><div id="clist"></div><div id="markout"></div></div>
   </section>
 
   <!-- ============ SETTINGS ============ -->
@@ -374,8 +374,15 @@ function renderClaims(){
   fillClaimVillages();
   const list=D.villages.filter(v=>v.claim_report).sort((a,b)=>a.tehsil.localeCompare(b.tehsil)||a.village.localeCompare(b.village));
   $('#ccount').textContent=list.length?`${list.length}`:'';
-  $('#clist').innerHTML=list.length?`<div class="tw"><table><thead><tr><th class="l">Village</th><th class="l">Tehsil</th><th class="l">Report</th><th>Claimed</th><th>Partly claimed</th><th>Unclaimed</th><th class="l"></th></tr></thead><tbody>${list.map(v=>`<tr data-v="${esc(v.village)}" data-t="${esc(v.tehsil)}"><td class="l"><b>${esc(v.village)}</b></td><td class="l">${esc(v.tehsil)}</td><td class="l muted">${esc(v.claim_report)}</td><td class="cl-g">${fmt(Math.max(0,v.total-v.unclaimed-(v.partly||0)))}</td><td class="cl-a">${fmt(v.partly||0)}</td><td class="cl-r">${fmt(v.unclaimed)}</td><td class="l"><button class="btn sec sm" data-act="clear">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+  $('#clist').innerHTML=list.length?`<div class="tw"><table><thead><tr><th class="l">Village</th><th class="l">Tehsil</th><th class="l">Report</th><th>Claimed</th><th>Partly claimed</th><th>Unclaimed</th><th class="l"></th></tr></thead><tbody>${list.map(v=>`<tr data-v="${esc(v.village)}" data-t="${esc(v.tehsil)}"><td class="l"><b>${esc(v.village)}</b></td><td class="l">${esc(v.tehsil)}</td><td class="l muted">${esc(v.claim_report)}</td><td class="cl-g">${fmt(Math.max(0,v.total-v.unclaimed-(v.partly||0)))}</td><td class="cl-a">${fmt(v.partly||0)}</td><td class="cl-r">${fmt(v.unclaimed)}</td><td class="l" style="white-space:nowrap"><button class="btn sm" data-act="mark">Mark claimed as Generated</button> <button class="btn sec sm" data-act="clear">Remove</button></td></tr>`).join('')}</tbody></table></div>`
     :'<p class="muted" style="margin:0">No report uploaded yet. Village pages show the normal view.</p>';
+}
+/* result of "Mark claimed as Generated": what changed and what was left for checking */
+function markText(village,j,done){
+  const ng=j.not_generated||[];
+  return `<div class="cbox"><b>${esc(village)}</b>: ${done?`${fmt(j.marked)} bucket${j.marked===1?'':'s'} marked Generated (recorded as “AgriStack report of ${esc(String(j.report).split(' · ')[0])}”).`:'Nothing to mark: every claimed or partly claimed bucket already has an entry.'}
+    ${j.already?` ${fmt(j.already)} ${j.already===1?'was':'were'} already Generated.`:''}${j.reset_by_team?` ${fmt(j.reset_by_team)} ${j.reset_by_team===1?'was':'were'} cleared by the team on the village page and left blank.`:''}
+    ${ng.length?`<div class="msg warn" style="margin:10px 0 0"><b>To check:</b> AgriStack shows ${ng.length===1?'this bucket':'these '+ng.length+' buckets'} claimed, but the team recorded Not generated. Left as entered.<div class="tw"><table style="margin-top:6px"><thead><tr><th class="l">Bucket</th><th class="l">Owner / parentage</th><th class="l">AgriStack</th><th class="l">Reason given</th><th class="l">By</th></tr></thead><tbody>${ng.map(x=>`<tr><td class="l">${esc(String(x.bucket_id).slice(0,13))}</td><td class="l">${esc(x.owner)} <span class="muted">/ ${esc(x.parentage)}</span></td><td class="l ${x.partly?'cl-a':'cl-g'}">${x.partly?'Partly claimed':'Claimed'}</td><td class="l" style="white-space:normal">${esc(x.reason||'–')}</td><td class="l muted">${esc(x.by||'')}</td></tr>`).join('')}</tbody></table></div></div>`:''}</div>`;
 }
 function fillClaimVillages(){
   const t=$('#c-tehsil').value, keep=$('#c-village').value;
@@ -441,8 +448,17 @@ $('#c-xl').addEventListener('change',async()=>{
 document.addEventListener('change',e=>{ if(e.target.id==='cforce') $('#csave').disabled=!e.target.checked; });
 document.addEventListener('click',async e=>{
   if(e.target.id==='csave'&&CL){ const b=e.target; b.disabled=true; b.textContent='Saving…';
-    try{ const j=await api('adminSaveClaims',CL); $('#cprev').innerHTML=`<div class="msg ok">${esc(CL.village)}: ${fmt(j.claimed)} claimed, ${fmt(j.partly||0)} partly claimed and ${fmt(j.unclaimed)} unclaimed buckets saved. The village page shows them from the next time it is opened.</div>`; $('#c-xl').value=''; CL=null; await refresh(); }
+    try{ const j=await api('adminSaveClaims',CL); $('#cprev').innerHTML=`<div class="msg ok">${esc(CL.village)}: ${fmt(j.claimed)} claimed, ${fmt(j.partly||0)} partly claimed and ${fmt(j.unclaimed)} unclaimed buckets saved. The village page shows them from the next time it is opened. To record the claimed ones as Generated, use “Mark claimed as Generated” in the list below.</div>`; $('#c-xl').value=''; CL=null; await refresh(); }
     catch(err){ b.disabled=false; b.textContent='Try again'; toast(err.message); } }
+  const mk=e.target.closest('#clist button[data-act=mark]');
+  if(mk){ const tr=mk.closest('tr'), who={tehsil:tr.dataset.t,village:tr.dataset.v}; mk.disabled=true;
+    try{
+      const d=await api('adminMarkClaimed',{...who,dry:true});
+      const skip=[d.already?`${fmt(d.already)} already Generated`:'',d.not_generated.length?`${fmt(d.not_generated.length)} recorded as Not generated by the team`:'',d.reset_by_team?`${fmt(d.reset_by_team)} cleared by the team on the page`:''].filter(Boolean).join(', ');
+      if(!d.marked){ $('#markout').innerHTML=markText(who.village,d,false); mk.disabled=false; return; }
+      if(!confirm(`${who.village}: mark ${d.marked} claimed or partly claimed bucket${d.marked===1?'':'s'} as Generated?\n\nOnly buckets with no entry are changed${skip?' ('+skip+' are left as they are)':''}. Unclaimed buckets are not touched.`)){ mk.disabled=false; return; }
+      const j=await api('adminMarkClaimed',who); await refresh(); $('#markout').innerHTML=markText(who.village,j,true); toast(`${j.marked} buckets marked Generated`);
+    }catch(err){ toast(err.message); mk.disabled=false; } }
   const rm=e.target.closest('#clist button[data-act=clear]');
   if(rm){ const tr=rm.closest('tr'); if(!confirm(`Remove the AgriStack status from ${tr.dataset.v}? Its page goes back to the normal view.`)) return;
     try{ await api('adminClearClaims',{tehsil:tr.dataset.t,village:tr.dataset.v}); toast('Removed'); await refresh(); }catch(err){ toast(err.message); } }
