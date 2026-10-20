@@ -53,6 +53,9 @@ h1{font:600 27px/1.15 "IBM Plex Serif",Georgia,serif;margin:0}
 .sync{font-size:13px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
 .sync i{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
 .sync.ok i{background:var(--field)} .sync.busy i{background:#c98a1b} .sync.err i{background:var(--brick)}
+.dlbtn{border:1.5px solid var(--slate);background:var(--card);color:var(--slate);border-radius:8px;padding:5px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.dlbtn:hover{background:color-mix(in srgb,var(--slate) 8%,var(--card))}
+.dlbtn:disabled{opacity:.6;cursor:default}
 .linkbtn{background:none;border:0;padding:0;color:var(--slate);text-decoration:underline;cursor:pointer;font-size:13px}
 
 .stats{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:18px;font-variant-numeric:tabular-nums}
@@ -233,6 +236,8 @@ footer{color:var(--ink-3);font-size:13px;padding:10px 0 40px}
   <div class="meta">
     <span class="acct" id="acct"></span>
     <span class="sync" id="sync"><i></i><span></span></span>
+    <button class="dlbtn" id="dl-pdf" type="button">Download PDF</button>
+    <button class="dlbtn" id="dl-xls" type="button">Download Excel</button>
     <button class="linkbtn" id="csv">Download all buckets (CSV)</button>
     <button class="linkbtn" id="misc">Miscellaneous information</button>
   </div>
@@ -715,6 +720,88 @@ async function load(){
   }
 }
 window.addEventListener('beforeunload',e=>{if(APPS_SCRIPT_URL&&pending.size){e.preventDefault(); e.returnValue='';}});
+/* ---------- REPORT_DOWNLOADS: the buckets with their entries as they stand now, as PDF or Excel ----------
+   Order: Not generated (grouped by reason, in the order of the reasons list), then Not yet filled, then Generated. */
+function reportRows(){
+  const order=new Map(REASONS.map((r,i)=>[r,i]));
+  const rows=DATA.buckets.map(b=>{
+    const e=ent(b.id), pm=new Map();
+    b.v.forEach(v=>v[3].forEach((s,i)=>{ const k=v[7][i]+'|'+v[8][i]; if(!pm.has(k)) pm.set(k,{kw:v[7][i],kt:v[8][i],sv:[]}); const p=pm.get(k); if(!p.sv.includes(s)) p.sv.push(s); }));
+    const land=[...pm.values()].sort((x,y)=>(parseFloat(x.kw)||0)-(parseFloat(y.kw)||0)||(parseFloat(x.kt)||0)-(parseFloat(y.kt)||0))
+      .map(p=>`${p.kw!==''&&p.kw!=null?'Khewat '+p.kw+', Khata '+p.kt:'Khewat / Khata not found'}: ${p.sv.join(', ')}`);
+    const cat=e.s==='not'?0:e.s==='gen'?2:1;
+    return {id:b.id,name:b.v[0][0],par:b.v[0][1],land,status:e.s==='gen'?'Generated':e.s==='not'?'Not generated':'Not yet filled',
+      reason:e.s==='not'?(e.reason||''):'',remarks:e.note||'',cat,ro:e.s==='not'?(e.reason?(order.has(e.reason)?order.get(e.reason):900):999):0};
+  });
+  rows.sort((a,b)=>a.cat-b.cat||a.ro-b.ro||(a.cat===0?String(a.reason).localeCompare(String(b.reason)):0)||a.id-b.id);
+  return rows;
+}
+function reportCounts(rows){ const c={not:0,open:0,gen:0}; rows.forEach(r=>{ if(r.cat===0) c.not++; else if(r.cat===1) c.open++; else c.gen++; }); return c; }
+function reportName(ext){ return `farmer_id_${(VILLAGE||'village').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')}_${new Date().toISOString().slice(0,10)}.${ext}`; }
+function loadJs(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>{ s.remove(); rej(new Error('could not load')); }; document.head.appendChild(s); }); }
+async function needLib(test,urls,what){ if(test()) return; for(const u of urls){ try{ await loadJs(u); if(test()) return; }catch(e){} } throw new Error(`the ${what} maker could not load – check the internet connection`); }
+function saveBlob(data,name,type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+/* the PDF's built-in font has English letters only: Urdu letters are written out (ب → bay) */
+const URDU_L={'الف':'alif','ا':'alif','ب':'bay','پ':'pay','ت':'tay','ٹ':'ttay','ث':'say','ج':'jeem','چ':'chay','ح':'hay','خ':'khay','د':'daal','ڈ':'ddaal','ذ':'zaal','ر':'ray','ز':'zay','س':'seen','ش':'sheen','ص':'suad','ض':'zuad','ط':'toay','ظ':'zoay','ع':'ain','غ':'ghain','ف':'fay','ق':'qaaf','ک':'kaaf','گ':'gaaf','ل':'laam','م':'meem','ن':'noon','و':'wao','ہ':'hay','ه':'hay','ی':'yay','ي':'yay','ے':'yay'};
+const pdfT=s=>String(s??'').replace(/[؀-ۿ]+/g,w=>URDU_L[w]||[...w].map(c=>URDU_L[c]||'').filter(Boolean).join('-')||'?').replace(/[^\n\x20-\x7E -ÿ–—‘’“”•]/g,'?');
+async function reportPdf(){
+  await needLib(()=>window.jspdf&&window.jspdf.jsPDF,['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'],'PDF');
+  await needLib(()=>window.jspdf.jsPDF.API.autoTable,['https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js','https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'],'PDF');
+  const rows=reportRows(), c=reportCounts(rows), doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
+  const W=doc.internal.pageSize.getWidth(), M=28, body=[], kinds=[];
+  let last=null;
+  rows.forEach(r=>{
+    const sec=r.cat===0?'Not generated – '+(r.reason||'no reason given'):r.cat===1?'Not yet filled':'Generated';
+    if(sec!==last){ const n=rows.filter(x=>(x.cat===0?'Not generated – '+(x.reason||'no reason given'):x.cat===1?'Not yet filled':'Generated')===sec).length;
+      body.push([{content:pdfT(`${sec}  (${n})`),colSpan:7}]); kinds.push('h'+r.cat); last=sec; }
+    body.push([String(r.id),pdfT(r.name),pdfT(r.par),pdfT(r.land.join('\n')),r.status,pdfT(r.reason),pdfT(r.remarks)]); kinds.push('r'+r.cat);
+  });
+  const when=new Date().toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
+  doc.autoTable({
+    head:[['Bucket no.','Name','Parentage','Khewat, Khata, Khasra','Farmer ID status','Reason (if not generated)','Remarks']],
+    body, startY:64, margin:{left:M,right:M,top:52,bottom:30}, theme:'grid',
+    styles:{font:'helvetica',fontSize:8.4,cellPadding:4,valign:'top',lineColor:[201,208,214],lineWidth:.5,textColor:[28,42,54],overflow:'linebreak'},
+    headStyles:{fillColor:[28,42,54],textColor:255,fontStyle:'bold'},
+    columnStyles:{0:{cellWidth:48,halign:'center',fontStyle:'bold'},1:{cellWidth:110},2:{cellWidth:105},3:{cellWidth:220},4:{cellWidth:72},5:{cellWidth:140},6:{cellWidth:'auto'}},
+    rowPageBreak:'avoid',
+    didParseCell:x=>{ if(x.section!=='body') return; const k=kinds[x.row.index];
+      if(k[0]==='h'){ x.cell.styles.fontStyle='bold'; x.cell.styles.fontSize=9; x.cell.styles.fillColor=k==='h0'?[248,227,220]:k==='h2'?[230,240,234]:[236,238,233]; x.cell.styles.textColor=k==='h0'?[168,67,42]:k==='h2'?[47,107,79]:[74,90,103]; }
+      else if(x.column.index===4) x.cell.styles.textColor=k==='r0'?[168,67,42]:k==='r2'?[47,107,79]:[124,138,149]; },
+    didDrawPage:()=>{
+      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(28,42,54); doc.text(pdfT(`Farmer ID status by bucket – ${VILLAGE}${TEHSIL?', Tehsil '+TEHSIL:''}`),M,30);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(90,104,115);
+      doc.text(`${rows.length} buckets · Not generated ${c.not} · Not yet filled ${c.open} · Generated ${c.gen} · as on ${when}`,M,44);
+      doc.setFontSize(8); doc.text('Page '+doc.internal.getNumberOfPages(),W-M,doc.internal.pageSize.getHeight()-14,{align:'right'});
+    }
+  });
+  saveBlob(doc.output('arraybuffer'),reportName('pdf'),'application/pdf');
+}
+async function reportXlsx(){
+  await needLib(()=>window.ExcelJS,['https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js','https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'],'Excel');
+  const rows=reportRows(), c=reportCounts(rows), wb=new window.ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Buckets',{views:[{state:'frozen',ySplit:1}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'}});
+  ws.columns=[['Bucket no.',10],['Name',24],['Parentage',22],['Khewat, Khata, Khasra',50],['Farmer ID status',16],['Reason (if not generated)',38],['Remarks',30]].map(([header,width])=>({header,width}));
+  rows.forEach(r=>ws.addRow([r.id,r.name,r.par,r.land.join('\n'),r.status,r.reason,r.remarks]));
+  const thin={style:'thin',color:{argb:'FFC9D0D6'}};
+  ws.getRow(1).eachCell(x=>{ x.font={bold:true,color:{argb:'FFFFFFFF'}}; x.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1C2A36'}}; x.alignment={vertical:'middle',wrapText:true}; x.border={top:thin,left:thin,bottom:thin,right:thin}; });
+  rows.forEach((r,i)=>{ const row=ws.getRow(i+2), fill=r.cat===0?'FFF8E3DC':r.cat===2?'FFE6F0EA':null;
+    for(let k=1;k<=7;k++){ const x=row.getCell(k); x.alignment={vertical:'top',wrapText:true}; x.border={top:thin,left:thin,bottom:thin,right:thin}; if(fill&&k===5) x.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}}; }
+    row.getCell(1).alignment={vertical:'top',horizontal:'center'}; row.getCell(1).font={bold:true}; });
+  ws.autoFilter={from:{row:1,column:1},to:{row:rows.length+1,column:7}};
+  const s=wb.addWorksheet('Summary'), when=new Date().toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
+  const byR=new Map(); rows.filter(r=>r.cat===0).forEach(r=>byR.set(r.reason||'(no reason given)',(byR.get(r.reason||'(no reason given)')||0)+1));
+  [['Village',VILLAGE],['Tehsil',TEHSIL],['As on',when],[],['Total buckets',rows.length],['Not generated',c.not],['Not yet filled',c.open],['Generated',c.gen],[],['Not generated, by reason','Buckets']]
+    .concat([...byR.entries()]).forEach(r=>s.addRow(r));
+  s.getColumn(1).width=48; s.getColumn(2).width=24; [1,5,10].forEach(n=>s.getRow(n).font={bold:true});
+  saveBlob(await wb.xlsx.writeBuffer(),reportName('xlsx'),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('#dl-pdf,#dl-xls'); if(!b) return;
+  const label=b.textContent; b.disabled=true; b.textContent='Preparing…';
+  try{ await (b.id==='dl-pdf'?reportPdf():reportXlsx()); }catch(err){ toast(err.message); }
+  b.disabled=false; b.textContent=label;
+});
+
 
 $('#csv').addEventListener('click',()=>{
   const rows=DATA.buckets.map(b=>rowFor(b.id)), cols=Object.keys(rows[0]);
