@@ -721,7 +721,7 @@ $('#vlist').addEventListener('click',async e=>{
 function renderReasonList(){
   const used=sum(D.villages).reasons, list=D.reasons||[];
   $('#rcount').textContent=`${list.length}`;
-  $('#rlist').innerHTML=list.length?list.map(r=>`<div class="rrow"><span>${esc(r)} ${used[r]?`<small class="muted">used ${fmt(used[r])} time${used[r]===1?'':'s'}</small>`:''}</span><button class="btn sec sm" data-r="${esc(r)}">Remove</button></div>`).join(''):'<p class="muted" style="margin:0">No reasons yet. Add at least one, otherwise “Not generated” cannot be completed on village pages.</p>';
+  $('#rlist').innerHTML=list.length?list.map(r=>`<div class="rrow"><span>${esc(r)} ${used[r]?`<small class="muted">used ${fmt(used[r])} time${used[r]===1?'':'s'}</small>`:''}</span><button class="btn sec sm" data-edit="${esc(r)}">Edit wording</button> <button class="btn sec sm" data-r="${esc(r)}">Remove</button></div>`).join(''):'<p class="muted" style="margin:0">No reasons yet. Add at least one, otherwise “Not generated” cannot be completed on village pages.</p>';
 }
 $('#rform').addEventListener('submit',async e=>{
   e.preventDefault(); $('#rmsg').innerHTML='';
@@ -729,6 +729,18 @@ $('#rform').addEventListener('submit',async e=>{
   catch(err){ $('#rmsg').innerHTML=`<div class="msg err">${esc(err.message)}</div>`; }
 });
 $('#rlist').addEventListener('click',async e=>{
+  const ed=e.target.closest('button[data-edit]');
+  if(ed){ const row=ed.closest('.rrow'), r=ed.dataset.edit, used=sum(D.villages).reasons[r]||0;
+    row.innerHTML=`<form class="redit" style="display:flex;gap:8px;flex:1;flex-wrap:wrap"><input class="in" style="flex:1 1 260px" maxlength="80" value="${esc(r)}" aria-label="New wording"><button class="btn sm" type="submit">Save</button><button class="btn sec sm" type="button" data-cancel="1">Cancel</button>
+      <small class="muted" style="width:100%">For small changes in wording. ${used?`The ${fmt(used)} ${used===1?'entry':'entries'} with this reason will show the new wording.`:'No entry uses this reason yet.'}</small></form>`;
+    const f=row.querySelector('form'), inp=f.querySelector('input'); inp.focus(); inp.select();
+    f.querySelector('[data-cancel]').onclick=()=>renderReasonList();
+    f.onsubmit=async ev=>{ ev.preventDefault(); const to=inp.value.replace(/\s+/g,' ').trim(); if(!to||to===r){ renderReasonList(); return; }
+      f.querySelector('button[type=submit]').disabled=true; $('#rmsg').innerHTML='';
+      try{ const j=await api('adminRenameReason',{from:r,to}); await refresh();
+        $('#rmsg').innerHTML=`<div class="msg ok">“${esc(r)}” now reads “${esc(to)}”.${j.entries?` ${fmt(j.entries)} ${j.entries===1?'entry':'entries'} in ${fmt(j.villages)} village${j.villages===1?'':'s'} changed with it.`:''}</div>`; toast('Reason edited'); }
+      catch(err){ f.querySelector('button[type=submit]').disabled=false; toast(err.message); } };
+    return; }
   const b=e.target.closest('button[data-r]'); if(!b) return; const r=b.dataset.r, used=sum(D.villages).reasons[r]||0;
   if(!confirm(`Remove “${r}” from the list?${used?` ${used} existing ${used===1?'entry keeps':'entries keep'} it and will be shown under “Needs attention”.`:''}`)) return;
   $('#rmsg').innerHTML='';
